@@ -1509,10 +1509,29 @@ function startStandPilot()
     standRoot.CFrame = CFrame.lookAt(standPos, standPos + initialLook)
     root.CFrame = CFrame.new(standPos.X, standY - _G.Config.standPilotUnderground, standPos.Z)
 
-    noclipConn = RunService.Stepped:Connect(function()
-        if not standPilotActive then return end
+    local noclipParts = {}
+    local noclipNextScan = 0
+    local function scanNoclipParts()
+        local list = {}
         for _, part in ipairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
+                list[#list + 1] = part
+            end
+        end
+        noclipParts = list
+    end
+    scanNoclipParts()
+    noclipNextScan = tick() + 0.5
+    noclipConn = RunService.Stepped:Connect(function()
+        if not standPilotActive then return end
+        local t = tick()
+        if t > noclipNextScan then
+            noclipNextScan = t + 0.5
+            scanNoclipParts()
+        end
+        for i = 1, #noclipParts do
+            local part = noclipParts[i]
+            if part.Parent then
                 part.CanCollide = false
             end
         end
@@ -2244,22 +2263,45 @@ if Player.Character then
     pcall(function() setupCharacter(Player.Character) end)
 end
 
+local auraCache = setmetatable({}, { __mode = "k" })
+local auraLast = { color = nil, cache = nil, written = 0 }
+
 function applyStandAura()
     if not _G.Config.standAuraEnabled then return end
     local model = livingModel()
     if not model then return end
 
+    local now = tick()
+    local cache = auraCache[model]
+    if cache and now - cache.built > 2 then
+        cache = nil
+    end
+    if not cache then
+        local emitters = {}
+        for _, obj in ipairs(model:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") and obj.Name:match("StandAura") then
+                emitters[#emitters + 1] = obj
+            end
+        end
+        cache = { emitters = emitters, built = now }
+        auraCache[model] = cache
+    end
+
     local color
     if _G.Config.standAuraRgb then
-        color = Color3.fromHSV((tick() % 2) / 2, 1, 1)
+        color = Color3.fromHSV((now % 2) / 2, 1, 1)
     else
         color = Color3.fromRGB(_G.Config.standAuraR, _G.Config.standAuraG, _G.Config.standAuraB)
     end
 
-    for _, obj in ipairs(model:GetDescendants()) do
-        if obj:IsA("ParticleEmitter") and obj.Name:match("StandAura") then
-            obj.Color = ColorSequence.new(color)
-        end
+    if color == auraLast.color and auraLast.cache == cache and now - auraLast.written < 2 then return end
+    auraLast.color = color
+    auraLast.cache = cache
+    auraLast.written = now
+
+    local seq = ColorSequence.new(color)
+    for i = 1, #cache.emitters do
+        cache.emitters[i].Color = seq
     end
 end
 
@@ -6483,7 +6525,7 @@ Library:CreateToggle(movementSection, "Auto Sprint", _G.Config.enableAutoSprint,
             _G.lllbozo:Disconnect()
         end
         _G.v01881 = _G.v01881 or 0
-        _G.v11132 = 0.1
+        _G.v11132 = 0.15
         function v12539122294(v993881)
             if v993881 > 16 then return end
             local v101010 = tick()
@@ -6517,18 +6559,28 @@ Library:CreateToggle(movementSection, "Auto Summon Stand", _G.Config.autoSumStan
         if _G.paragonpidor then
             _G.paragonpidor:Disconnect()
         end
-        _G.paragonpidor = game:GetService("RunService").RenderStepped:Connect(function()
-            local p = game:GetService("Players").LocalPlayer.Character
-            if p then
-                local ss = p.SummonedStand
-                if not ss.Value then
-                    local cv = game:GetService("Players").LocalPlayer.Character.RemoteFunction
+        local function trySummonStand()
+            local plr = game:GetService("Players").LocalPlayer
+            local p = plr.Character
+            if not p then return end
+            local ss = p:FindFirstChild("SummonedStand")
+            if not ss then return end
+            if not ss.Value then
+                local cv = p:FindFirstChild("RemoteFunction")
+                if cv then
                     cv:InvokeServer(
                         "ToggleStand",
                         "Toggle"
                     )
                 end
             end
+        end
+        local lastSummonCheck = 0
+        _G.paragonpidor = game:GetService("RunService").RenderStepped:Connect(function()
+            local t = tick()
+            if t - lastSummonCheck < 0.25 then return end
+            lastSummonCheck = t
+            trySummonStand()
         end)
     else
         if _G.paragonpidor then
@@ -7925,15 +7977,22 @@ end)
 if _G.miscVisualConn then
     _G.miscVisualConn:Disconnect()
 end
+local weatherObj = nil
 _G.miscVisualConn = RunService.RenderStepped:Connect(function()
-    Lighting.ClockTime = _G.Config.clocktime
-    if _G.Config.leghtink and _G.Config.leghtink ~= "..." then
-        pcall(function()
-            local workWeather = workspace:FindFirstChild("Weather")
-            if workWeather then
-                workWeather.Value = _G.Config.leghtink
-            end
-        end)
+    local clock = _G.Config.clocktime
+    if Lighting.ClockTime ~= clock then
+        Lighting.ClockTime = clock
+    end
+    local weather = _G.Config.leghtink
+    if weather and weather ~= "..." then
+        if not weatherObj or not weatherObj.Parent then
+            weatherObj = workspace:FindFirstChild("Weather")
+        end
+        if weatherObj and weatherObj.Value ~= weather then
+            pcall(function()
+                weatherObj.Value = weather
+            end)
+        end
     end
     applyStandAura()
 end)
