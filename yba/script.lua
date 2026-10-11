@@ -1730,195 +1730,6 @@ function tpToDioOH()
     game:GetService("Players").LocalPlayer.Character:WaitForChild("RemoteEvent"):FireServer(unpack(args))
 end
 
-_G.autoFarm = false
-_G.Farm = {
-    ["Mysterious Arrow"] = true,
-    ["Gold Coin"] = true,
-    ["Rokakaka"] = true,
-    ["Pure Rokakaka"] = true,
-    ["Lucky Arrow"] = true,
-    ["Lucky Stone Mask"] = true,
-    ["Steel Ball"] = true,
-    ["Ancient Scroll"] = true,
-    ["Quinton's Glove"] = true,
-    ["Stone Mask"] = true,
-    ["Clackers"] = true,
-    ["Rib Cage of The Saint's Corpse"] = true,
-    ["Diamond"] = true,
-    ["Dio's Diary"] = true
-}
-
-_G.autoSell = false
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
-local vim = game:GetService("VirtualInputManager")
-
--- sell
-local backpackConn = nil
-local selling = false
-
-function sellItem(tool)
-    if not _G.autoSell or not tool then return end
-    if selling then return end
-
-    selling = true
-    local char = player.Character or player.CharacterAdded:Wait()
-    local humanoid = char:WaitForChild("Humanoid")
-
-    humanoid:EquipTool(tool)
-    repeat task.wait() until tool.Parent == char or not _G.autoSell
-
-    local args = {
-        "EndDialogue",
-        {
-            Option = "Option2",
-            Dialogue = "Dialogue5",
-            NPC = "Merchant"
-        }
-    }
-
-    char:WaitForChild("RemoteEvent"):FireServer(unpack(args))
-    task.wait(0.35)
-    selling = false
-end
-
-function scanBackpack()
-    local backpack = player:FindFirstChild("Backpack")
-    if not backpack then return end
-
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if not _G.autoSell then break end
-        if tool:IsA("Tool") and _G.Farm[tool.Name] then
-            sellItem(tool)
-        end
-    end
-end
-
-function startAutoSell()
-    local backpack = player:WaitForChild("Backpack")
-    if backpackConn then
-        backpackConn:Disconnect()
-    end
-    backpackConn = game:GetService("RunService").RenderStepped:Connect(function()
-        if not _G.autoSell then return end
-        scanBackpack()
-    end)
-end
-
-function stopAutoSell()
-    if backpackConn then
-        backpackConn:Disconnect()
-        backpackConn = nil
-    end
-    selling = false
-end
-
-function toggleAutoSell(state)
-    _G.autoSell = state
-    if state then
-        startAutoSell()
-    else
-        stopAutoSell()
-    end
-end
-
--- shit
-local lastFound = tick()
-local lastSuccess = tick()
-local SKIP_DELAY = 5
-
-local cachedPrompts = {}
-local lastUpdate = 0
-local UPDATE_DELAY = 1 
-
-function updatePrompts()
-    table.clear(cachedPrompts)
-    for _, v in ipairs(Workspace:GetDescendants()) do
-        if v:IsA("ProximityPrompt") and v.ObjectText and _G.Farm[v.ObjectText] then
-            local model = v:FindFirstAncestorOfClass("Model")
-            if model and model.Parent then
-                table.insert(cachedPrompts, {item = model, prompt = v})
-            end
-        end
-    end
-    lastUpdate = tick()
-end
-
-function getAllPrompts()
-    if tick() - lastUpdate > UPDATE_DELAY then
-        updatePrompts()
-    end
-    return cachedPrompts
-end
-
-function getUnderPosition(item)
-    local cf, size = item:GetBoundingBox()
-    return cf.Position - Vector3.new(0, (size.Y/2) + 3, 0)
-end
-
-function getClosestItem(root)
-    local prompts = getAllPrompts()
-    local closest = nil
-    local shortest = math.huge
-
-    for _, data in ipairs(prompts) do
-        if data.item and data.item.Parent then
-            local pos = getUnderPosition(data.item)
-            local dist = (root.Position - pos).Magnitude
-            if dist < shortest then
-                shortest = dist
-                closest = data
-            end
-        end
-    end
-    return closest
-end
-
-
-local radius = 25
-local disabledParts = {}
-local active = false
-function disableCollision()
-    local char = player.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    for _, part in ipairs(Workspace:GetPartBoundsInRadius(root.Position, radius)) do
-        if part:IsA("BasePart") and part.CanCollide and not part:IsDescendantOf(char) then
-            part.CanCollide = false
-            disabledParts[part] = true
-        end
-    end
-end
-function restoreCollision()
-    for part in pairs(disabledParts) do
-        if part and part:IsDescendantOf(Workspace) then
-            part.CanCollide = true
-        end
-    end
-    table.clear(disabledParts)
-end
-
-RunService.Stepped:Connect(function()
-    if _G.autoFarm then
-        active = true
-        disableCollision()
-    else
-        if active then
-            restoreCollision()
-            active = false
-        end
-    end
-end)
-
-player.CharacterAdded:Connect(function()
-    task.wait(1)
-    if not _G.autoFarm then restoreCollision() end
-end)
-
 -- FAST TRAVEL
 local fastTravelPoints = {
     "Merchant's Keep",
@@ -2140,135 +1951,12 @@ function createWaterTexture()
     texture.Parent = ocean
 end
 
-local poses = {
-    ["Old SP"] = { player = "6048287469", stand = "6048287117" },
-    ["Old KC"] = { player = "4490526328", stand = "6048281381" },
-    ["GE"] = { player = "6048278851", stand = "6048278456" },
-    ["SCR"] = { player = "4628343401", stand = "6048284655" },
-    ["CDR"] = { player = "136034596499700", stand = "76634209056964" },
-    ["CD"] = { player = "12779533595", stand = "12779535127" },
-    ["SP"] = { player = "12798600038", stand = "12798600931" },
-    ["TW"] = { player = "12779544362", stand = "12779545784" },
-    ["TH"] = { player = "6048280610", stand = "6048280959" },
-    ["KC"] = { player = "6048281381", stand = "6048281691" },
-    ["KCR"] = { player = "12779538033", stand = "12779540110" },
-    ["SP:TW"] = { player = "12779541357", stand = "12779542706" },
-    ["TWOH"] = { player = "6105485353", stand = "6105485671" },
-    ["TWAU"] = { player = "12779547515", stand = "12779548847" },
-}
-
-function setPose(pose)
-    local data = poses[pose]
-    if data then
-        _G.poseAssetPlayer = data.player
-        _G.poseAssetStand = data.stand
-    end
-end
-
-local poseRunningConnection = nil
-local standTrack = nil
-local playerTrack = nil
-local poseHumanoid = nil
-local summonedConnection = nil
-local standChildAddedConnection = nil
-local currentStandMorph = nil
-
-function livingModel()
-    local living = workspace:FindFirstChild("Living")
-    return living and living:FindFirstChild(Player.Name)
-end
-
-function isStandSummoned(playerModel)
-    local summoned = playerModel and playerModel:FindFirstChild("SummonedStand")
-    return summoned and summoned.Value == true
-end
-
-function clearPose()
-    if poseRunningConnection then poseRunningConnection:Disconnect() poseRunningConnection = nil end
-    if standTrack then standTrack:Stop() standTrack = nil end
-    if playerTrack then playerTrack:Stop() playerTrack = nil end
-end
-
-function applyPose()
-    if not _G.Config.poseEnabled or not currentStandMorph or not poseHumanoid then return end
-    local playerModel = livingModel()
-    if not isStandSummoned(playerModel) then
-        clearPose()
-        return
-    end
-
-    local controller = currentStandMorph:FindFirstChildOfClass("AnimationController")
-    local standAnimator = controller and controller:FindFirstChildOfClass("Animator")
-    local playerAnimator = poseHumanoid:FindFirstChildOfClass("Animator")
-    if not standAnimator or not playerAnimator or not _G.poseAssetStand or not _G.poseAssetPlayer then return end
-
-    clearPose()
-
-    local standAnimation = Instance.new("Animation")
-    standAnimation.AnimationId = "rbxassetid://" .. _G.poseAssetStand
-    local idleAnimation = Instance.new("Animation")
-    idleAnimation.AnimationId = "rbxassetid://" .. _G.poseAssetPlayer
-
-    standTrack = standAnimator:LoadAnimation(standAnimation)
-    playerTrack = playerAnimator:LoadAnimation(idleAnimation)
-    standTrack.Looped = true
-    playerTrack.Looped = true
-
-    poseRunningConnection = poseHumanoid.Running:Connect(function(speed)
-        if speed == 0 then
-            if not playerTrack.IsPlaying then playerTrack:Play() end
-        elseif playerTrack.IsPlaying then
-            playerTrack:Stop()
-        end
-    end)
-
-    standTrack:Play()
-    if poseHumanoid.MoveDirection.Magnitude == 0 then
-        playerTrack:Play()
-    end
-end
-
-function setupCharacter(character)
-    poseHumanoid = character:WaitForChild("Humanoid", 10)
-    local playerModel = livingModel()
-    if not poseHumanoid or not playerModel then return end
-
-    if summonedConnection then summonedConnection:Disconnect() end
-    if standChildAddedConnection then standChildAddedConnection:Disconnect() standChildAddedConnection = nil end
-    local summoned = playerModel:FindFirstChild("SummonedStand")
-    if summoned then
-        summonedConnection = summoned.Changed:Connect(function()
-            if summoned.Value == true then applyPose() else clearPose() end
-        end)
-    end
-
-    local existing = playerModel:FindFirstChild("StandMorph")
-    if existing then
-        currentStandMorph = existing
-        task.delay(0.5, applyPose)
-    end
-
-    standChildAddedConnection = playerModel.ChildAdded:Connect(function(child)
-        if child.Name == "StandMorph" then
-            currentStandMorph = child
-            task.delay(0.5, applyPose)
-        end
-    end)
-end
-
-Player.CharacterAdded:Connect(function(character)
-    setupCharacter(character)
-end)
-if Player.Character then
-    pcall(function() setupCharacter(Player.Character) end)
-end
-
 local auraCache = setmetatable({}, { __mode = "k" })
 local auraLast = { color = nil, cache = nil, written = 0 }
 
 function applyStandAura()
     if not _G.Config.standAuraEnabled then return end
-    local model = livingModel()
+    local model = game:GetService("Players").LocalPlayer.Character
     if not model then return end
 
     local now = tick()
@@ -2307,7 +1995,7 @@ end
 
 function getAllGloves()
     local result = {}
-    local model = livingModel()
+    local model = game:GetService("Players").LocalPlayer.Character
     local gloves = model and model:FindFirstChild("Boxing Gloves")
     local gloves2 = model and model:FindFirstChild("Boxing Claws")
     local gloves3 = model and model:FindFirstChild("Bone Gloves")
@@ -2328,7 +2016,7 @@ function getAllGloves()
 end
 
 function findHand(partName)
-    local char = livingModel()
+    local char = game:GetService("Players").LocalPlayer.Character
     if not char then return nil end
     local hand = char:FindFirstChild(partName)
     if hand then return hand end
@@ -2833,12 +2521,18 @@ local currentStandMorph = nil
 
 function isStandSummoned(playerModel)
     local summoned = playerModel:FindFirstChild("SummonedStand")
-    return summoned and summoned.Value == true
+    local a = playerModel.StandMorph["Stand Name"].Value
+    if a and a == "Star Platinum" then
+        return summoned and summoned.Value == true
+    end
+    return false
 end
 
 function applyPose()
     if not currentStandMorph then return end
     if not humanoid then return end
+
+    game:GetService("ReplicatedStorage").Stands["Star Platinum"].PlayerIdle.AnimationId = "rbxassetid://6048287117"
 
     local playerModel = living:WaitForChild(player.Name)
     if not isStandSummoned(playerModel) then
@@ -2847,40 +2541,17 @@ function applyPose()
     end
 
     local standAnimator = currentStandMorph.AnimationController:WaitForChild("Animator")
-    playerAnimator = humanoid:WaitForChild("Animator")
 
     if runningConnection then runningConnection:Disconnect() end
     if standTrack then standTrack:Stop() end
-    if playerTrack then playerTrack:Stop() end
 
     local standAnimation = Instance.new("Animation")
     standAnimation.AnimationId = "rbxassetid://" .. _G.poseAssetStand
 
-    local idleAnimation = Instance.new("Animation")
-    idleAnimation.AnimationId = "rbxassetid://" .. _G.poseAssetPlayer
-
     standTrack = standAnimator:LoadAnimation(standAnimation)
-    playerTrack = playerAnimator:LoadAnimation(idleAnimation)
-
     standTrack.Looped = true
-    playerTrack.Looped = true
-
-    runningConnection = humanoid.Running:Connect(function(speed)
-        if speed == 0 then
-            if not playerTrack.IsPlaying then
-                playerTrack:Play()
-            end
-        else
-            if playerTrack.IsPlaying then
-                playerTrack:Stop()
-            end
-        end
-    end)
 
     standTrack:Play()
-    if humanoid.MoveDirection.Magnitude == 0 then
-        playerTrack:Play()
-    end
 end
 
 function clearPose()
@@ -2892,10 +2563,7 @@ function clearPose()
         standTrack:Stop()
         standTrack = nil
     end
-    if playerTrack then
-        playerTrack:Stop()
-        playerTrack = nil
-    end
+    game:GetService("ReplicatedStorage").Stands["Star Platinum"].PlayerIdle.AnimationId = "rbxassetid://12798600931"
 end
 
 function setupCharacter(character)
@@ -6886,363 +6554,226 @@ Library:CreateSlider(movementSection, "Dash CD", _G.Config.fakeDashCd, 0, 4, fun
 end)
 
 local autoParrySection = Library:CreateFunctionTab(tab_functions, "Auto Parry")
-local function updateAutoParry(methodName, ...)
-    local autoParry = _G.AutoParry
-    if autoParry and type(autoParry[methodName]) == "function" then
-        pcall(autoParry[methodName], ...)
-    end
-end
-
--- auto parry
-
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-
-local LocalPlayer = Players.LocalPlayer
-local ClientFX = ReplicatedStorage:FindFirstChild("ClientFX")
-local ClientVFX = ReplicatedStorage:FindFirstChild("ClientVFX")
-
-if not ClientFX and not ClientVFX then
-    warn("[AutoParry] ClientFX and ClientVFX not found")
-    return
-end
-
-local PARRY_CONFIG = {
-    enabled = true,
-    radius = 15,
-    cooldown = 1,
-    attacks = {
-        "HeavyMarker",
-        "Reality Overwriting Punch",
-    },
-    blockSeq = {
-        releaseAttack = true,
-        releaseInput = "E",
-        beforeBlockDelay = 0.1,
-        holdDuration = 0.3,
-        waitBfBlock = 0.3,
-    },
-}
-
-local FINISHER_SOUNDS = {
-    "Purple Haze Finisher",
-    "Red Hot Chili Pepper Finisher",
-    "Scary Monsters Finisher",
-    "Silver Chariot Finisher",
-    "Six Pistols Finisher",
-    "Soft & Wet Finisher",
-    "Soft & Wet: Go Beyond Finisher",
-    "Star Platinum Finisher",
-    "Star Platinum: The World Finisher",
-    "Sticky Fingers Finisher",
-    "Stone Free Finisher",
-    "The World Alternate Universe Finisher",
-    "The World Finisher",
-    "The World Finisher2",
-    "The World Over Heaven Finisher",
-    "Tusk ACT 4 Finisher",
-    "Tusk ACT 4 Finisher2",
-    "Weather Report Finisher",
-    "White Album Finisher",
-    "Whitesnake Finisher",
-    "OLD Stone Free Finisher",
-    "Gold Experience Finisher",
-    "Gold Experience Finisher2",
-    "Gold Experience Requiem Finisher",
-    "Hermit Purple Finisher",
-    "Hierophant Green Finisher",
-    "Killer Queen Finisher",
-    "Killer Queen: Bites the Dust Finisher",
-    "King Crimson Finisher",
-    "King Crimson Requiem Finisher",
-    "Made in Heaven Finisher",
-    "D4C Love Train Finisher",
-    "C-Moon Finisher",
-    "Chariot Requiem Finisher",
-    "Chili Pepper Alternate Universe Finisher",
-    "Crazy Diamond Finisher",
-    "Cream Finisher",
-    "D4C Finisher",
-    "Propeller Charge Voiceline",
-    "Star Platinum Platinum Slam Voiceline",
-    "Star Platinum: The World Platinum Slam Voiceline",
-    "Ice Swipe",
-    "Uppercut to The Moon",
-    "KC Impale Voiceline",
-    "Kidnap SFX",
-    "Skull Crusher2",
-    "Soft & Wet_Bubble Prison_Start",
-    "Star Finger Voiceline",
-    "KQ Impale Voiceline",
-    "Vampirism_Vaporization Freezing Strike_Windup",
-    "While Album_Ice Punch_Start",
-    "While Album_Ice Swipe_Start",
-    "Shinei Voiceline",
-    "Crazy Diamond_Crazy Beatdown_Startup",
-    "Sticky Fingers_Arrivederci Beatdown_Voiceline_1",
-    "Scary Monsters_Dino Barrage_FF_StartVoice",
-    "Shadow The World_Stand Combo_Windup",
-    "Shadow The World_Punishment_WindupVoiceline",
-    "Shadow The World_Punishment_WindupVoiceline",
-    "Shadow The World_Heavy Chop_Voiceline",
-    "Gold Experience Summon Tree Voiceline",
-    "Erasure_Voiceline",
-    "Erasure",
-    "Erasure_Hit",
-    "HeavyIndicator",
-    "Life Shot Voiceline",
-    "Surface Inversion Punch Voiceline",
-
-}
-
-local function isFinisherSound(soundName)
-    for _, name in ipairs(FINISHER_SOUNDS) do
-        if soundName == name then
-            return true
-        end
-    end
-    return false
-end
-
-local AutoParry = {}
-AutoParry._connection = nil
-AutoParry._connectionVFX = nil
-AutoParry._lastBlockTime = 0
-AutoParry._active = false
-AutoParry._soundDebounce = {}
-
-local function getSoundName(soundValue)
-    if type(soundValue) == "string" then
-        return soundValue
-    end
-
-    if typeof(soundValue) ~= "Instance" or not soundValue:IsA("Sound") then
-        return nil
-    end
-
-    local name = soundValue.Name
-
-    if name == "Start" or name == "Finisher" or name == "Sound" or name == "Swing" then
-        local parent = soundValue.Parent
-        if parent then
-            local parentName = parent.Name
-            if parentName ~= "Sounds" and parentName ~= "Stands" and parentName ~= "ReplicatedStorage" then
-                return parentName .. "_" .. name
-            end
-            local grandparent = parent.Parent
-            if grandparent and grandparent.Name ~= "Sounds" and grandparent.Name ~= "Stands" then
-                return grandparent.Name .. "_" .. parentName .. "_" .. name
-            end
-        end
-        return nil
-    end
-
-    return name
-end
-
-local function isOwnOrigin(origin)
-    local char = LocalPlayer.Character
-    if not char or typeof(origin) ~= "Instance" then return false end
-    if origin == char or origin:IsDescendantOf(char) then return true end
-    local stand = char:FindFirstChild("StandMorph")
-    if stand and (origin == stand or origin:IsDescendantOf(stand)) then
-        return true
-    end
-    return false
-end
-
-local function getRoot(model)
-    if not model then return nil end
-    return model:FindFirstChild("HumanoidRootPart")
-        or model:FindFirstChild("UpperTorso")
-        or model:FindFirstChild("Torso")
-end
-
-local function getPlayerFromOrigin(origin)
-    if typeof(origin) ~= "Instance" then return nil end
-    local current = origin
-    while current do
-        if current:IsA("Model") then
-            local plr = Players:GetPlayerFromCharacter(current) or Players:FindFirstChild(current.Name)
-            if plr then return plr end
-        end
-        current = current.Parent
-    end
-    return nil
-end
-
-local function performBlock()
-    local char = LocalPlayer.Character
-    if not char then return false end
-
-    local remote = char:FindFirstChild("RemoteEvent")
-    if not remote then return false end
-
-    local seq = PARRY_CONFIG.blockSeq
-
-    if seq.releaseAttack ~= false then
-        remote:FireServer("HoldAttack", {
-            Bool = false,
-            Type = seq.attackType or "m1",
-        })
-    end
-
-    if seq.releaseInput then
-        local input = seq.releaseInput
-        if type(input) == "string" then
-            input = Enum.KeyCode[input]
-        end
-        remote:FireServer("InputEnded", {
-            Input = input,
-        })
-    end
-
-    remote:FireServer("StopBlocking", nil)
-
-    local delay = seq.beforeBlockDelay or 0.45
-    task.wait(delay)
-
-    remote:FireServer("StartBlocking", nil)
-
-    local hold = seq.holdDuration or 0.3
-    task.wait(hold)
-
-    remote:FireServer("StopBlocking", nil)
-
-    return true
-end
-
-local function handleClientFX(markerType, data)
-    if not PARRY_CONFIG.enabled then return end
-
-    local cooldown = PARRY_CONFIG.cooldown
-    if os.clock() - AutoParry._lastBlockTime < cooldown then return end
-
-    local origin = nil
-    local soundName = nil
-
-    if markerType == "PlaySound" and type(data) == "table" then
-        local soundValue = data.Sound
-        soundName = getSoundName(soundValue)
-
-        if soundName and isFinisherSound(soundName) then
-            origin = data.Origin
-            print("[AutoParry] Sound detected: " .. soundName)
-        end
-    elseif type(data) == "table" and data.Origin then
-        for _, name in ipairs(PARRY_CONFIG.attacks) do
-            if markerType == name then
-                origin = data.Origin
-                print("[AutoParry] Attack detected: " .. markerType)
-                break
-            end
-        end
-    end
-
-    if not origin then return end
-    if isOwnOrigin(origin) then return end
-
-    local attacker = getPlayerFromOrigin(origin)
-    if not attacker or attacker == LocalPlayer then return end
-
-    local myChar = LocalPlayer.Character
-    local attChar = attacker.Character
-    if not myChar or not attChar then return end
-
-    local myRoot = getRoot(myChar)
-    local attRoot = getRoot(attChar)
-    if not myRoot or not attRoot then return end
-
-    local radius = PARRY_CONFIG.radius
-    local distance = (myRoot.Position - attRoot.Position).Magnitude
-    if distance > radius then return end
-
-    if soundName then
-        local debounceKey = soundName .. "_" .. attacker.Name
-        if AutoParry._soundDebounce[debounceKey] then
-            return
-        end
-        AutoParry._soundDebounce[debounceKey] = true
-        task.delay(0.5, function()
-            AutoParry._soundDebounce[debounceKey] = nil
-        end)
-    end
-
-    local seq = PARRY_CONFIG.blockSeq
-    local waitBeforeBlock
-    if soundName == "Shinei Voiceline" then
-        waitBeforeBlock = 0.1
-    else
-        waitBeforeBlock = seq.waitBfBlock
-    end
-
-    print(string.format("[AutoParry] Parrying in %.2fs (Distance: %.1f | Attacker: %s)", waitBeforeBlock, distance, attacker.Name))
-
-    AutoParry._lastBlockTime = os.clock()
-
-    task.spawn(function()
-        task.wait(waitBeforeBlock)
-        performBlock()
-    end)
-end
-
-function AutoParry.Start()
-    if AutoParry._active then return true end
-
-    AutoParry._active = true
-
-    if ClientFX then
-        AutoParry._connection = ClientFX.OnClientEvent:Connect(handleClientFX)
-    end
-
-    if ClientVFX then
-        AutoParry._connectionVFX = ClientVFX.OnClientEvent:Connect(handleClientFX)
-    end
-
-    print("[AutoParry] Started")
-    return true
-end
-
-function AutoParry.Stop()
-    AutoParry._active = false
-    if AutoParry._connection then
-        AutoParry._connection:Disconnect()
-        AutoParry._connection = nil
-    end
-    if AutoParry._connectionVFX then
-        AutoParry._connectionVFX:Disconnect()
-        AutoParry._connectionVFX = nil
-    end
-    print("[AutoParry] Stopped")
-end
-
-function AutoParry.Destroy()
-    AutoParry.Stop()
-    if _G.AutoParry == AutoParry then
-        _G.AutoParry = nil
-    end
-end
-
-if _G.AutoParry and type(_G.AutoParry.Destroy) == "function" then
-    _G.AutoParry.Destroy()
-end
-
-_G.AutoParry = AutoParry
-
-
 Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoParryEnabled, function(state)
     _G.Config.autoParryEnabled = state
     SaveConfig()
     if state then
-        _G.AutoParry.Start()
+        if _G.imgaypbpbpb then
+            _G.imgaypbpbpb:Disconnect()
+        end
+
+        local Players = game:GetService("Players")
+        local RS = game:GetService("ReplicatedStorage")
+        local VIM = game:GetService("VirtualInputManager")
+        local LP = Players.LocalPlayer
+        local event = RS:WaitForChild("ClientFX")
+
+        local function getPlayerFromPart(part)
+            if not part then return nil end
+            local obj = part
+            while obj and obj ~= workspace do
+                local plr = Players:GetPlayerFromCharacter(obj)
+                if plr then return plr end
+                if obj.Parent == workspace:FindFirstChild("Living") then
+                    local byName = Players:FindFirstChild(obj.Name)
+                    if byName then return byName end
+                end
+                obj = obj.Parent
+            end
+            return nil
+        end
+        local function getNearbyPlayers(radius)
+            local nearby = {}
+            local myChar = LP.Character
+            local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if not myRoot then return nearby end
+
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LP and plr.Character then
+                    local root = plr.Character:FindFirstChild("HumanoidRootPart")
+                    if root and (root.Position - myRoot.Position).Magnitude <= radius then
+                        nearby[plr] = true
+                    end
+                end
+            end
+            return nearby
+        end
+        local function anyMatchSound(data, predicate)
+            if typeof(data) == "Instance" then
+                if predicate(data.Name) then return true end
+                local parts = {}
+                local obj = data
+                while obj and obj.Parent and obj.Parent ~= RS do
+                    table.insert(parts, 1, obj.Name)
+                    obj = obj.Parent
+                end
+                table.insert(parts, 1, obj.Name)
+                if predicate(table.concat(parts, ".")) then return true end
+            elseif type(data) == "string" then
+                if predicate(data) then return true end
+            elseif type(data) == "table" then
+                for _, v in pairs(data) do
+                    if anyMatchSound(v, predicate) then return true end
+                end
+            end
+            return false
+        end
+        local function isFacingMe(originPlayer, maxAngleDeg)
+            local myChar = LP.Character
+            local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            local hisChar = originPlayer.Character
+            local hisRoot = hisChar and hisChar:FindFirstChild("HumanoidRootPart")
+            if not myRoot or not hisRoot then return false end
+
+            local toMe = (myRoot.Position - hisRoot.Position)
+            if toMe.Magnitude < 0.1 then return true end
+            toMe = toMe.Unit
+
+            local look = hisRoot.CFrame.LookVector
+            local dot = look:Dot(toMe)
+            local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
+
+            return angle <= maxAngleDeg
+        end
+        local pb_shit = {
+            ["KQ Impale Voiceline"] = true,
+            ["Killer Queen Finisher"] = true,
+            ["Heavy_Charge"] = true,
+            ["HeavyIndicator"] = true,
+            ["Rod Slap Voiceline"] = true,
+            ["Rod_Hooked"] = true,
+            ["Shinei Teleport"] = true,
+            ["Star Finger Voiceline"] = true,
+            ["Star Platinum Platinum Slam Voiceline"] = true,
+            ["Star Platinum: The World Platinum Slam Voiceline"] = true,
+            ["Star Platinum The World Platinum Slam Voiceline"] = true,
+            ["Star Platinum Finisher"] = true,
+            ["Star Platinum: The World Finisher"] = true,
+            ["Crazy Diamond Requiem Finisher"] = true,
+            ["Crazy Diamond Finisher"] = true,
+            ["Restoration Trap"] = true,
+            ["Uppercut to The Moon"] = true,
+            ["Silver Chariot.Million Pricks Voiceline"] = true,
+            ["Million Pricks Voiceline"] = true,
+            ["Shadow The World.Punishment.WindupVoiceline"] = true,
+            ["Shadow The World.Heavy Chop.Voiceline"] = true,
+            ["Shadow The World.Stand Combo.Windup"] = true,
+            ["Gravitational Shift Voiceline"] = true,
+            ["Surface Inversion Punch Voiceline"] = true,
+            ["WindupVoiceline"] = true,
+            ["Crazy Diamond.You're In My Range.WindupVoiceline"] = true,
+            ["King Crimson Requiem Finisher"] = true,
+            ["D4C Finisher"] = true,
+            ["D4C Love Train Finisher"] = true,
+            ["D4C Finisher"] = true,
+            ["C-Moon Finisher"] = true,
+            ["Chariot Requiem Finisher"] = true,
+            ["Diver Down Finisher"] = true,
+            ["Gold Experience Finisher"] = true,
+            ["Gold Experience Finisher2"] = true,
+            ["Gold Experience Requiem Finisher"] = true,
+            ["Gold Experience Summon Tree Voiceline"] = true,
+            ["Hermit Purple Finisher"] = true,
+            ["Hierophant Green Finisher"] = true,
+            ["Killer Queen Finisher"] = true,
+            ["KC Impale Voiceline"] = true,
+            ["Killer Queen: Bites the Dust Finisher"] = true,
+            ["Made in Heaven Finisher"] = true,
+            ["Purple Haze Finisher"] = true,
+            ["Red Hot Chili Pepper Finisher"] = true,
+            ["Scary Monsters Finisher"] = true,
+            ["Scary Monsters.Dino Barrage.FF_StartVoice"] = true,
+
+            ["Silver Chariot Finisher"] = true,
+            ["Six Pistols Finisher"] = true,
+            ["Soft & Wet Finisher"] = true,
+            ["Soft & Wet: Go Beyond Finisher"] = true,
+            ["Sticky Fingers Finisher"] = true,
+            ["Stone Free Finisher"] = true,
+            ["The World Alternate Universe Finisher"] = true,
+            ["The World Finisher"] = true,
+            ["The World Over Heaven Finisher"] = true,
+            ["Tusk ACT 4 Finisher"] = true,
+            ["Tusk ACT 4 Finisher2"] = true,
+            ["Weather Report Finisher"] = true,
+            ["While Album Finisher"] = true,
+            ["Whitesnake Finisher"] = true,
+            ["King Crimson Finisher"] = true,
+            ["Gravitational Shift Voiceline"] = true,
+            ["Sounds.Crazy Diamond.Crazy Beatdown.Startup"] = true,
+            ["Vampirism.Vaporization Freezing Strike.Windup"] = true,
+            ["Vampirism.Oblivion of Death.Dash"] = true,
+            
+        }
+        local pb_shit_customWait = {
+        ["Sounds.Crazy Diamond.You're In My Range.WindupVoiceline"] = 0.2
+        }
+        local pb_shit_ignore = {
+            ["Road Sign Voiceline"] = true,
+        }
+        _G.imgaypbpbpb = event.OnClientEvent:Connect(function(action, data)
+            if type(action) ~= "string" then return end
+            if type(data) ~= "table" or not data.Origin then return end
+
+            local originPlayer = getPlayerFromPart(data.Origin)
+            if not originPlayer then return end
+            if not getNearbyPlayers(tonumber(_G.Config.autoParryRadius))[originPlayer] then return end
+
+            if data.Sound == "PerfectBlocked" then
+                VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                return
+            end
+
+            local customWait
+            local shouldPress = false
+
+            anyMatchSound(data.Sound, function(name)
+                warn(name)
+                if customWait == nil and pb_shit_customWait[name] then
+                    customWait = pb_shit_customWait[name]
+                end
+                return false
+            end)
+
+            if not shouldPress then
+                if anyMatchSound(data.Sound, function(name) return pb_shit[name] end) then
+                    shouldPress = true
+                end
+                if anyMatchSound(data.Sound, function(name) return pb_shit_ignore[name] end) then
+                    shouldPress = false
+                end
+            end
+
+            if customWait ~= nil then shouldPress = true end
+
+            if not shouldPress and pb_shit[action] and not data.Swing then
+                shouldPress = true
+            end
+
+            if not shouldPress then return end
+
+            local delayTime = customWait or 0.35
+            warn('[AUTO PB] delay: ' .. delayTime)
+
+            task.wait(delayTime)
+
+            if not isFacingMe(originPlayer, 150) then
+                task.wait(0.03)
+            end
+            VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+            task.wait(0.01)
+            VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+            task.wait(0.35)
+            VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        end)
     else
-        _G.AutoParry.Stop()
+        if _G.imgaypbpbpb then
+            _G.imgaypbpbpb:Disconnect()
+        end
     end
 end)
 Library:CreateSlider(autoParrySection, "Parry Radius", _G.Config.autoParryRadius, 1, 50, function(val)
     _G.Config.autoParryRadius = math.floor(val)
-    PARRY_CONFIG.radius = _G.Config.autoParryRadius
     SaveConfig()
 end)
 _G.barrageButton = Enum.KeyCode.E
@@ -7292,6 +6823,7 @@ Library:CreateToggle(autoParrySection, "Enable Instant Barrage(E)", _G.Config.in
             if type(action) ~= "string" then return end
             if not action:match("Stand Barrage") then return end
             if type(data) ~= "table" or not data.Origin then return end
+            if data.OraKicks then return end
 
             local originPlayer = getPlayerFromPart(data.Origin)
             if not originPlayer then
@@ -7440,19 +6972,6 @@ Library:CreateSlider(miscSection, "Stand Only: Timeout", _G.Config.standOnlyTime
 end)
 Library:CreateSlider(miscSection, "Stand Only: Lock Time", _G.Config.standPilotWait, 0, 30, function(v)
     _G.Config.standPilotWait = v
-    SaveConfig()
-end)
-
-
-local autoFarmSection = Library:CreateFunctionTab(tab_functions, "Auto Farm")
-Library:CreateToggle(autoFarmSection, "Enable Auto Farm", _G.Config.autofarm_farm, function(state)
-    _G.Config.autofarm_farm = state
-    _G.autoFarm = state
-    SaveConfig()
-end)
-Library:CreateToggle(autoFarmSection, "Enable Auto Sell", _G.Config.autofarm_sell, function(state)
-    _G.Config.autofarm_sell = state
-    toggleAutoSell(state)
     SaveConfig()
 end)
 
