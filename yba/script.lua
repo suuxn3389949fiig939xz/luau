@@ -2522,7 +2522,7 @@ local currentStandMorph = nil
 function isStandSummoned(playerModel)
     local summoned = playerModel:FindFirstChild("SummonedStand")
     local a = playerModel.StandMorph["Stand Name"].Value
-    if a and a == "Star Platinum" then
+    if a and (a == "Star Platinum" or a == "Star Platinum The World" or a == "Star Platinum: The World") then
         return summoned and summoned.Value == true
     end
     return false
@@ -2532,13 +2532,17 @@ function applyPose()
     if not currentStandMorph then return end
     if not humanoid then return end
 
+    local playerModel = living:WaitForChild(player.Name)
+
+    game:GetService("ReplicatedStorage").Stands["Star Platinum: The World"].PlayerIdle.AnimationId = "rbxassetid://6076435263"
     game:GetService("ReplicatedStorage").Stands["Star Platinum"].PlayerIdle.AnimationId = "rbxassetid://6048287117"
 
-    local playerModel = living:WaitForChild(player.Name)
-    if not isStandSummoned(playerModel) then
-        clearPose()
-        return
-    end
+    pcall(function()
+        if not isStandSummoned(playerModel) then
+            clearPose()
+            return
+        end
+    end)
 
     local standAnimator = currentStandMorph.AnimationController:WaitForChild("Animator")
 
@@ -2564,12 +2568,13 @@ function clearPose()
         standTrack = nil
     end
     game:GetService("ReplicatedStorage").Stands["Star Platinum"].PlayerIdle.AnimationId = "rbxassetid://12798600931"
+    game:GetService("ReplicatedStorage").Stands["Star Platinum: The World"].PlayerIdle.AnimationId = "rbxassetid://12779542706"
 end
 
 function setupCharacter(character)
     if not _G.Config.oldAnimationsSp then return end
     local sss = game:GetService("Players").LocalPlayer.PlayerStats.Stand
-    if sss and sss.Value == "Star Platinum" then 
+    if sss and (sss.Value == "Star Platinum" or sss.Value == "Star Platinum The World" or sss.Value == "Star Platinum: The World") then 
         setPose("Old SP")
     end
     humanoid = character:WaitForChild("Humanoid")
@@ -6639,7 +6644,6 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["KQ Impale Voiceline"] = true,
             ["Killer Queen Finisher"] = true,
             ["Heavy_Charge"] = true,
-            ["HeavyIndicator"] = true,
             ["Rod Slap Voiceline"] = true,
             ["Rod_Hooked"] = true,
             ["Shinei Teleport"] = true,
@@ -6652,7 +6656,6 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Crazy Diamond Requiem Finisher"] = true,
             ["Crazy Diamond Finisher"] = true,
             ["Restoration Trap"] = true,
-            ["Uppercut to The Moon"] = true,
             ["Silver Chariot.Million Pricks Voiceline"] = true,
             ["Million Pricks Voiceline"] = true,
             ["Shadow The World.Punishment.WindupVoiceline"] = true,
@@ -6683,7 +6686,7 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Red Hot Chili Pepper Finisher"] = true,
             ["Scary Monsters Finisher"] = true,
             ["Scary Monsters.Dino Barrage.FF_StartVoice"] = true,
-
+            ["Wormhole Nails"] = true,
             ["Silver Chariot Finisher"] = true,
             ["Six Pistols Finisher"] = true,
             ["Soft & Wet Finisher"] = true,
@@ -6703,17 +6706,69 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Sounds.Crazy Diamond.Crazy Beatdown.Startup"] = true,
             ["Vampirism.Vaporization Freezing Strike.Windup"] = true,
             ["Vampirism.Oblivion of Death.Dash"] = true,
-            
+            ["HeavyIndicator"] = true,
+            ["Erasure"] = true,
+            ["Skull Crusher"] = true,
+            ["Skull Crusher2"] = true,
+            ["Reality Overwriting Punch"] = true,
+            --["HeavySwing"] = true,
+            --["Gun_Shot1"] = true,
+            ["Nail Slash"] = true,
+            ["Zipper Extension"] = true,
+            ["Living Zippers"] = true,
+            ["Acidic Spew"] = true,
+            ["Disc"] = true,
+            ["Ice Swipe"] = true,
+            ["Ice Punch"] = true,
+            ["Ice Sweeps"] = true,
+            ["AnubisFinisher1"] = true,
+            ["Enraged Fury Slash"] = true,
+            ["Enraged Fury"] = true,
+            ["Sounds.Purple Haze.Killer Virus.Windup"] = true,
+            ["Propeller Charge Voiceline"] = true,
         }
         local pb_shit_customWait = {
-        ["Sounds.Crazy Diamond.You're In My Range.WindupVoiceline"] = 0.2
+            ["Skull Crusher"] = 0.3,
+            ["Skull Crusher2"] = 0.3,
+            ["Sounds.Crazy Diamond.You're In My Range.WindupVoiceline"] = 0.2,
+            ["Gravitational Shift Voiceline"] = 0.6,
+            ["Surface Inversion Punch Voiceline"] = 0.25,
+            ["Wormhole Nails"] = 0.3,
+            ["Zipper Extension"] = 0.3,
+            ["Ice Punch"] = 0.2,
+            ["Enraged Fury"] = 0.1,
+            ["Acidic Spew"] = 0.2,
+            ["Erasure"] = 0.2,
+            ["Propeller Charge Voiceline"] = 0.2,
+            --["Living Zippers"] = 0.25,
+        }
+        local pb_shit_customHold = {
+            --["Living Zippers"] = 1.0,
+            ["Zipper Extension"] = 0.6,
         }
         local pb_shit_ignore = {
             ["Road Sign Voiceline"] = true,
+            ["Uppercut to The Moon"] = true,
+            ["Heaven Ascended Smite"] = true,
+            ["Overwrite1"] = true,
+            ["Self Injury Overwrite"] = true,
+            --["SpinIndicator"] = true,
+            ["Living Zippers"] = true,
+            ["Ora Kicks"] = true,
         }
+        _G.pb_action_1 = nil
         _G.imgaypbpbpb = event.OnClientEvent:Connect(function(action, data)
             if type(action) ~= "string" then return end
             if type(data) ~= "table" or not data.Origin then return end
+
+            -- if action == "HitEffect" and data.Origin == game.Players.LocalPlayer.Character.HumanoidRootPart then
+            --     VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+            --     warn('- hiteffect')
+            --     if _G.pb_action_1 then
+            --         task.cancel(_G.pb_action_1)
+            --     end
+            --     return
+            -- end
 
             local originPlayer = getPlayerFromPart(data.Origin)
             if not originPlayer then return end
@@ -6721,16 +6776,25 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
 
             if data.Sound == "PerfectBlocked" then
                 VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                warn('- pb')
+                if _G.pb_action_1 then
+                    task.cancel(_G.pb_action_1)
+                end
                 return
             end
 
             local customWait
+            local customHold
             local shouldPress = false
 
             anyMatchSound(data.Sound, function(name)
-                warn(name)
+                warn('attack: [ ' .. name .. '] ')
                 if customWait == nil and pb_shit_customWait[name] then
                     customWait = pb_shit_customWait[name]
+                    _G.waitFor = name
+                end
+                if customHold == nil and pb_shit_customHold[name] then
+                    customHold = pb_shit_customHold[name]
                 end
                 return false
             end)
@@ -6741,31 +6805,53 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
                 end
                 if anyMatchSound(data.Sound, function(name) return pb_shit_ignore[name] end) then
                     shouldPress = false
+                    if _G.pb_action_1 then
+                        task.cancel(_G.pb_action_1)
+                    end
+                    warn('- ignore')
                 end
             end
 
             if customWait ~= nil then shouldPress = true end
 
-            if not shouldPress and pb_shit[action] and not data.Swing then
+            if not shouldPress and pb_shit[action .. "1"] and not data.Swing and not data.Finish then
                 shouldPress = true
+                if customWait == nil and pb_shit_customWait[action] then
+                    customWait = pb_shit_customWait[action]
+                end
+                if customHold == nil and pb_shit_customHold[action] then
+                    customHold = pb_shit_customHold[action]
+                end
             end
 
             if not shouldPress then return end
 
-            local delayTime = customWait or 0.35
-            warn('[AUTO PB] delay: ' .. delayTime)
+            _G.pb_action_1 = task.spawn(function()
+                wait(0.01)
+                VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 
-            task.wait(delayTime)
+                local delayTime = customWait or 0.35
+                local delayTime2 = customHold or 0.35
+                warn('[AUTO PB] delay: ' .. delayTime)
 
-            if not isFacingMe(originPlayer, 150) then
-                task.wait(0.03)
-            end
-            VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-            task.wait(0.01)
-            VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-            task.wait(0.35)
-            VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                task.wait(delayTime)
+
+                VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+
+                if not isFacingMe(originPlayer, 150) then
+                    task.wait(0.015)
+                end
+
+                VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                task.wait(delayTime2)
+                VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+            end)
         end)
+        print('hi')
     else
         if _G.imgaypbpbpb then
             _G.imgaypbpbpb:Disconnect()
