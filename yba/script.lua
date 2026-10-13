@@ -85,6 +85,7 @@ do
         enableAntiTS = false,
         antiTsType = "Under",
         autoParryEnabled = false,
+        autoParryHitEffect = false,
         autoParryRadius = 10,
         autoParryCooldown = 1,
         autoParryShowRadius = false,
@@ -5617,7 +5618,12 @@ local assetstable = {
     "vampirism",
     "whitealbum",
     "whitesnake",
+    "sixpistols",
+    "stickyfingers",
     "weatherreport",
+    "soft&wet",
+    "soft&wetgobeyond",
+    "magicansred",
 }
 
 local function checkAssets()
@@ -6655,7 +6661,7 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Star Platinum: The World Finisher"] = true,
             ["Crazy Diamond Requiem Finisher"] = true,
             ["Crazy Diamond Finisher"] = true,
-            ["Restoration Trap"] = true,
+            ["Restoration Trap1"] = true,
             ["Silver Chariot.Million Pricks Voiceline"] = true,
             ["Million Pricks Voiceline"] = true,
             ["Shadow The World.Punishment.WindupVoiceline"] = true,
@@ -6686,6 +6692,7 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Red Hot Chili Pepper Finisher"] = true,
             ["Scary Monsters Finisher"] = true,
             ["Scary Monsters.Dino Barrage.FF_StartVoice"] = true,
+            ["Wormhole Nails1"] = true,
             ["Wormhole Nails"] = true,
             ["Silver Chariot Finisher"] = true,
             ["Six Pistols Finisher"] = true,
@@ -6713,9 +6720,10 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Reality Overwriting Punch"] = true,
             --["HeavySwing"] = true,
             --["Gun_Shot1"] = true,
+            ["Nail Slash1"] = true,
             ["Nail Slash"] = true,
-            ["Zipper Extension"] = true,
-            ["Living Zippers"] = true,
+            ["Zipper Extension1"] = true,
+            ["Living Zippers1"] = true,
             ["Acidic Spew"] = true,
             ["Disc"] = true,
             ["Ice Swipe"] = true,
@@ -6726,27 +6734,40 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Enraged Fury"] = true,
             ["Sounds.Purple Haze.Killer Virus.Windup"] = true,
             ["Propeller Charge Voiceline"] = true,
+            ["Infinite Speed1"] = true,
+            ["Liver Shot1"] = true,
+            ["No Mickey1"] = true,
+            ["Chop Sui1"] = true,
+            ["Modify Structure1"] = true,
+            ["Zipper Explosion1"] = true,
+            ["Rod_Reel"] = true,
         }
         local pb_shit_customWait = {
+            ["Modify Structure1"] = 0.25,
+            ["Chop Sui1"] = 0.2,
             ["Skull Crusher"] = 0.3,
             ["Skull Crusher2"] = 0.3,
             ["Sounds.Crazy Diamond.You're In My Range.WindupVoiceline"] = 0.2,
             ["Gravitational Shift Voiceline"] = 0.6,
             ["Surface Inversion Punch Voiceline"] = 0.25,
-            ["Wormhole Nails"] = 0.3,
-            ["Zipper Extension"] = 0.3,
+            ["Wormhole Nails1"] = 0.3,
+            ["Zipper Extension1"] = 0.02,
             ["Ice Punch"] = 0.2,
             ["Enraged Fury"] = 0.1,
             ["Acidic Spew"] = 0.2,
             ["Erasure"] = 0.2,
             ["Propeller Charge Voiceline"] = 0.2,
-            --["Living Zippers"] = 0.25,
+            ["Living Zippers1"] = 0.25,
+            ["Erasure"] = 0.05,
+            ["Rod_Reel"] = 0.1,
         }
         local pb_shit_customHold = {
-            --["Living Zippers"] = 1.0,
-            ["Zipper Extension"] = 0.6,
+            ["Living Zippers1"] = 3.0,
+            ["Zipper Explosion1"] = 2.0,
+            ["Zipper Extension1"] = 0.4,
         }
         local pb_shit_ignore = {
+            ["Speed Slice"] = true,
             ["Road Sign Voiceline"] = true,
             ["Uppercut to The Moon"] = true,
             ["Heaven Ascended Smite"] = true,
@@ -6761,14 +6782,15 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             if type(action) ~= "string" then return end
             if type(data) ~= "table" or not data.Origin then return end
 
-            -- if action == "HitEffect" and data.Origin == game.Players.LocalPlayer.Character.HumanoidRootPart then
-            --     VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-            --     warn('- hiteffect')
-            --     if _G.pb_action_1 then
-            --         task.cancel(_G.pb_action_1)
-            --     end
-            --     return
-            -- end
+            if _G.Config.autoParryHitEffect and action == "HitEffect" and data.Origin == game.Players.LocalPlayer.Character.HumanoidRootPart and _G.pb_action_1 then
+                VIM:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                warn('- hiteffect')
+                if _G.pb_action_1 then
+                    task.cancel(_G.pb_action_1)
+                    _G.pb_action_1 = nil
+                end
+                return
+            end
 
             local originPlayer = getPlayerFromPart(data.Origin)
             if not originPlayer then return end
@@ -6779,6 +6801,7 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
                 warn('- pb')
                 if _G.pb_action_1 then
                     task.cancel(_G.pb_action_1)
+                    _G.pb_action_1 = nil
                 end
                 return
             end
@@ -6814,13 +6837,13 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
 
             if customWait ~= nil then shouldPress = true end
 
-            if not shouldPress and pb_shit[action .. "1"] and not data.Swing and not data.Finish then
+            if not shouldPress and pb_shit[action .. "1"] and not data.Swing and not data.Finish and not data.Barrage then
                 shouldPress = true
-                if customWait == nil and pb_shit_customWait[action] then
-                    customWait = pb_shit_customWait[action]
+                if customWait == nil and pb_shit_customWait[action .. "1"] then
+                    customWait = pb_shit_customWait[action .. "1"]
                 end
-                if customHold == nil and pb_shit_customHold[action] then
-                    customHold = pb_shit_customHold[action]
+                if customHold == nil and pb_shit_customHold[action .. "1"] then
+                    customHold = pb_shit_customHold[action .. "1"]
                 end
             end
 
@@ -6835,6 +6858,7 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
                 local delayTime = customWait or 0.35
                 local delayTime2 = customHold or 0.35
                 warn('[AUTO PB] delay: ' .. delayTime)
+                warn('[AUTO PB] hold: ' .. delayTime2)
 
                 task.wait(delayTime)
 
@@ -6858,7 +6882,11 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
         end
     end
 end)
-Library:CreateSlider(autoParrySection, "Parry Radius", _G.Config.autoParryRadius, 1, 50, function(val)
+Library:CreateToggle(autoParrySection, "A.P. React to Def. Block", _G.Config.autoParryHitEffect, function(state)
+    _G.Config.autoParryHitEffect = state
+    SaveConfig()
+end)
+Library:CreateSlider(autoParrySection, "Parry Radius", _G.Config.autoParryRadius, 1, 100, function(val)
     _G.Config.autoParryRadius = math.floor(val)
     SaveConfig()
 end)
