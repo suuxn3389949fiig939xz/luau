@@ -7836,12 +7836,10 @@ function changeSkin(fileName)
 
     local HttpService = game:GetService("HttpService")
 
-    local fileName2 =  fileName .. ".rbxmx"
-
     local newModel = nil
     if getcustomasset and isfile then
-        if isfile(fileName2) then
-            local assetId = getcustomasset(fileName2)
+        if isfile(fileName) then
+            local assetId = getcustomasset(fileName)
             local success, objects = pcall(function()
                 return game:GetObjects(assetId)
             end)
@@ -7852,7 +7850,7 @@ function changeSkin(fileName)
                 return
             end
         else
-            warn("1.not found: " .. fileName2)
+            warn("1.not found: " .. fileName)
             return
         end
     else
