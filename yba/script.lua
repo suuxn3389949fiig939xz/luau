@@ -8151,7 +8151,7 @@ function LoadSkinDB()
         return
     end
     local json = readfile(DB_FILE)
-    local data = HttpService:JSONDecode(json)
+    local data = game:GetService("HttpService"):JSONDecode(json)
     _G.skinChanger_stands = data or {}
     print("[DB] Loaded " .. #_G.skinChanger_stands .. " entries")
 end
