@@ -7836,6 +7836,7 @@ function changeSkin(fileName)
 
     local HttpService = game:GetService("HttpService")
 
+    fileName = "ssoc_skins/" .. fileName 
     local newModel = nil
     if getcustomasset and isfile then
         if isfile(fileName) then
@@ -8139,7 +8140,7 @@ local DB_FILE = "ssoc_skins/stands_dat.json"
 _G.skinChanger_stands = {}
 function SaveSkinDB()
     if not isfolder("ssoc_skins") then makefolder("ssoc_skins") end
-    local json = HttpService:JSONEncode(_G.skinChanger_stands)
+    local json = game:GetService("HttpService"):JSONEncode(_G.skinChanger_stands)
     writefile(DB_FILE, json)
     print("[DB] Saved " .. #_G.skinChanger_stands .. " entries")
 end
