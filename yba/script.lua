@@ -84,6 +84,7 @@ do
         shuffleDist = 1.25,
         enableAntiTS = false,
         antiTsType = "Under",
+        autoParryNearPlayersOnly = false,
         autoParryEnabled = false,
         autoParryHitEffect = false,
         autoParryRadius = 10,
@@ -6629,22 +6630,17 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             end
             return false
         end
-        local function isFacingMe(originPlayer, maxAngleDeg)
+        local function isFacingMe(originPlayer, dist)
             local myChar = LP.Character
             local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
             local hisChar = originPlayer.Character
             local hisRoot = hisChar and hisChar:FindFirstChild("HumanoidRootPart")
             if not myRoot or not hisRoot then return false end
 
-            local toMe = (myRoot.Position - hisRoot.Position)
-            if toMe.Magnitude < 0.1 then return true end
-            toMe = toMe.Unit
+            local delta = myRoot.Position - hisRoot.Position
+            if delta.Magnitude > dist then return false end
 
-            local look = hisRoot.CFrame.LookVector
-            local dot = look:Dot(toMe)
-            local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
-
-            return angle <= maxAngleDeg
+            return true
         end
         local pb_shit = {
             ["KQ Impale Voiceline"] = true,
@@ -6660,6 +6656,7 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Star Platinum Finisher"] = true,
             ["Star Platinum: The World Finisher"] = true,
             ["Crazy Diamond Requiem Finisher"] = true,
+            ["Kidnap SFX"] = true,
             ["Crazy Diamond Finisher"] = true,
             ["Restoration Trap1"] = true,
             ["Silver Chariot.Million Pricks Voiceline"] = true,
@@ -6742,9 +6739,11 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Zipper Explosion1"] = true,
             ["Rod_Reel"] = true,
             ["Life Absorption1"] = true,
+            ["Bakugo Voiceline"] = true,
         }
         local pb_shit_customWait = {
-            ["Heavy Chop1"] = 0.25,
+            ["Bakugo Voiceline"] = 0.2,
+            ["Heavy Chop1"] = 0.2,
             ["Punishment1"] = 0.25,
             ["Modify Structure1"] = 0.25,
             ["Chop Sui1"] = 0.2,
@@ -6765,6 +6764,7 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Rod_Reel"] = 0.1,
         }
         local pb_shit_customHold = {
+            ["Bakugo Voiceline"] = 0.5,
             ["Living Zippers1"] = 3.0,
             ["Zipper Explosion1"] = 2.0,
             ["Zipper Extension1"] = 0.4,
@@ -6840,7 +6840,7 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
 
             if customWait ~= nil then shouldPress = true end
 
-            if not shouldPress and pb_shit[action .. "1"] and not data.Swing and not data.Finish and not data.Barrage then
+            if not shouldPress and pb_shit[action .. "1"] and not data.Slash1 and not data.Swing and not data.Finish and not data.Barrage then
                 shouldPress = true
                 if customWait == nil and pb_shit_customWait[action .. "1"] then
                     customWait = pb_shit_customWait[action .. "1"]
@@ -6869,8 +6869,24 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
                 VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
                 VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 
-                if not isFacingMe(originPlayer, 150) then
-                    task.wait(0.015)
+                if _G.Config.autoParryNearPlayersOnly then
+                    if not isFacingMe(originPlayer, 30) then
+                        _G.notfacing = true
+                        local ct = 0
+                        while _G.notfacing do  
+                            ct += 1
+                            if isFacingMe(originPlayer, 30) then
+                                _G.notfacing = false
+                            end
+                            if ct >= 100 then
+                                break
+                            end
+                            task.wait(0.01)
+                        end
+                        if _G.notfacing then
+                            return
+                        end
+                    end
                 end
 
                 VIM:SendKeyEvent(true, Enum.KeyCode.F, false, game)
@@ -6885,11 +6901,15 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
         end
     end
 end)
-Library:CreateToggle(autoParrySection, "A.P. React to Def. Block", _G.Config.autoParryHitEffect, function(state)
+Library:CreateToggle(autoParrySection, "Parry Near Players Only", _G.Config.autoParryNearPlayersOnly, function(state)
+    _G.Config.autoParryNearPlayersOnly = state
+    SaveConfig()
+end)
+Library:CreateToggle(autoParrySection, "Parry React to Def. Block", _G.Config.autoParryHitEffect, function(state)
     _G.Config.autoParryHitEffect = state
     SaveConfig()
 end)
-Library:CreateSlider(autoParrySection, "Parry Radius", _G.Config.autoParryRadius, 1, 100, function(val)
+Library:CreateSlider(autoParrySection, "Parry Radius", _G.Config.autoParryRadius, 1, 500, function(val)
     _G.Config.autoParryRadius = math.floor(val)
     SaveConfig()
 end)
@@ -7809,1043 +7829,199 @@ for action in pairs(_G.Keybinds) do
     end
 end
 
--- stand skin changer(shit btw)
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+-- stand skin changer(shit but better ig)
+function changeSkin(fileName)
+    local parentModel = game.Workspace:FindFirstChild("Living") and game.Workspace.Living:FindFirstChild(game.Players.LocalPlayer.Name)
+    local oldModelName = "StandMorph"
 
-local bodyParts = {
-    "Head", "LeftFoot", "LeftHand", "LeftLowerArm", "LeftLowerLeg",
-    "LeftUpperArm", "LeftUpperLeg", "LowerTorso",
-    "RightFoot", "RightHand", "RightLowerArm", "RightLowerLeg",
-    "RightUpperArm", "RightUpperLeg", "UpperTorso",
-    "Horse"
-}
+    local HttpService = game:GetService("HttpService")
 
-local allSaveParts = {
-    "Head", "LeftFoot", "LeftHand", "LeftLowerArm", "LeftLowerLeg",
-    "LeftUpperArm", "LeftUpperLeg", "LowerTorso",
-    "RightFoot", "RightHand", "RightLowerArm", "RightLowerLeg",
-    "RightUpperArm", "RightUpperLeg", "UpperTorso",
-    "HumanoidRootPart",
-    "Horse"
-}
+    local fileName2 =  fileName .. ".rbxmx"
 
-local visualClasses = {
-    MeshPart = true, Decal = true, SurfaceAppearance = true,
-    Beam = true, ParticleEmitter = true, Bone = true,
-    Model = true, Attachment = true, Trail = true,
-    PointLight = true, Texture = true, Highlight = true,
-    Weld = true, WeldConstraint = true
-}
-
-local attachmentCache = {}
-local function generateKey()
-    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    local key = {}
-    for i = 1, 32 do
-        local pos = math.random(1, #chars)
-        key[i] = chars:sub(pos, pos)
-    end
-    return table.concat(key)
-end
-
-local function xorCipher(data, key)
-    local result = {}
-    for i = 1, #data do
-        local dataByte = string.byte(data, i)
-        local keyByte = string.byte(key, ((i - 1) % #key) + 1)
-        result[i] = string.char(bit32.bxor(dataByte, keyByte))
-    end
-    return table.concat(result)
-end
-
-local function encodeData(json)
-    local key = generateKey()
-    local encrypted = xorCipher(json, key)
-    return key .. encrypted
-end
-
-local function decodeData(raw)
-    local key = raw:sub(1, 32)
-    local encrypted = raw:sub(33)
-    local json = xorCipher(encrypted, key)
-    return json
-end
-
-local function getStandMorph1()
-    local char = workspace:FindFirstChild("Living")
-    if not char then return nil end
-    for _, player in pairs(char:GetChildren()) do
-        if player.Name:lower():find(_G.ADMINDEBUG_name:lower(), 1, true) then
-            return player:FindFirstChild("StandMorph")
-        end
-    end
-    return nil
-end
-local function getStandMorph2()
-    local char = workspace:FindFirstChild("Living")
-    if not char then return nil end
-    local player = char:FindFirstChild(LocalPlayer.Name)
-    return player and player:FindFirstChild("StandMorph")
-end
-
-local function saveProp(value)
-    local t = typeof(value)
-
-    if t == "Vector3" then
-        return {__t = "Vector3", v = {value.X, value.Y, value.Z}}
-    elseif t == "Vector2" then
-        return {__t = "Vector2", v = {value.X, value.Y}}
-    elseif t == "Color3" then
-        return {__t = "Color3", v = {value.R, value.G, value.B}}
-    elseif t == "CFrame" then
-        return {__t = "CFrame", v = {value:GetComponents()}}
-    elseif t == "NumberRange" then
-        return {__t = "NumberRange", v = {value.Min, value.Max}}
-    elseif t == "NumberSequence" then
-        local points = {}
-        for _, p in ipairs(value.Keypoints) do
-            table.insert(points, {
-                Time = p.Time,
-                Value = p.Value,
-                Envelope = p.Envelope
-            })
-        end
-        return {__t = "NumberSequence", v = points}
-    elseif t == "ColorSequence" then
-        local points = {}
-        for _, p in ipairs(value.Keypoints) do
-            table.insert(points, {
-                Time = p.Time,
-                Color = {p.Value.R, p.Value.G, p.Value.B}
-            })
-        end
-        return {__t = "ColorSequence", v = points}
-    elseif t == "BrickColor" then
-        return {__t = "BrickColor", v = value.Number}
-    elseif t == "EnumItem" then
-        return {__t = "Enum", v = tostring(value)}
-    elseif t == "string" or t == "number" or t == "boolean" then
-        return value
-    end
-    return nil
-end
-
-local function hasParticleEmitterInside(attachment)
-    for _, child in ipairs(attachment:GetDescendants()) do
-        if child:IsA("ParticleEmitter") then
-            return true
-        end
-    end
-    return false
-end
-
-local function ensureAttachmentID(attachment)
-    local id = attachment:GetAttribute("SaveID")
-    if not id then
-        id = HttpService:GenerateGUID(false)
-        attachment:SetAttribute("SaveID", id)
-    end
-    return id
-end
-
-local function saveInstance(inst, parentPart)
-    local data = {ClassName = inst.ClassName, Name = inst.Name, Properties = {}, Children = {}}
-
-    if inst:IsA("MeshPart") then
-        local props = {
-            "MeshId", "TextureID", "Material", "BrickColor", "Color", "Transparency", "Reflectance",
-            "CastShadow", "Visible", "Locked", "Anchored", "CanCollide", "Massless",
-            "PivotOffset", "CollisionFidelity", "RenderFidelity", "DoubleSided"
-        }
-        pcall(function()
-            if parentPart then
-                local relativeCF = parentPart.CFrame:Inverse() * inst.CFrame
-                data.Properties["RelativeCFrame"] = {__t = "CFrame", v = {relativeCF:GetComponents()}}
+    local newModel = nil
+    if getcustomasset and isfile then
+        if isfile(fileName2) then
+            local assetId = getcustomasset(fileName2)
+            local success, objects = pcall(function()
+                return game:GetObjects(assetId)
+            end)
+            if success and objects and #objects > 0 then
+                newModel = objects[1]
+            else
+                warn("1.error: " .. tostring(objects))
+                return
             end
-        end)
-
-        for _, prop in ipairs(props) do
-            local ok, val = pcall(function() return inst[prop] end)
-            if ok and val ~= nil then local s = saveProp(val); if s ~= nil then data.Properties[prop] = s end end
+        else
+            warn("1.not found: " .. fileName2)
+            return
         end
-
-        data.Properties.SizeOrig = saveProp(inst.Size)
-
-        for _, child in ipairs(inst:GetChildren()) do
-            if visualClasses[child.ClassName] then
-                table.insert(data.Children, saveInstance(child, inst))
-            end
-        end
-
-    elseif inst:IsA("Model") then
-        if parentPart then
-            local relativeCF = parentPart.CFrame:Inverse() * inst:GetPivot()
-            data.Properties["RelativeCFrame"] = {__t = "CFrame", v = {relativeCF:GetComponents()}}
-        end
-        for _, child in ipairs(inst:GetChildren()) do
-            if visualClasses[child.ClassName] then
-                table.insert(data.Children, saveInstance(child, inst))
-            end
-        end
-
-    elseif inst:IsA("Attachment") then
-        local id = ensureAttachmentID(inst)
-        data.Properties.AttachmentID = id
-
-        if parentPart then
-            local parentCF = parentPart:IsA("Model") and parentPart:GetPivot() or parentPart.CFrame
-            local relativeCF = parentCF:Inverse() * inst.WorldCFrame
-            data.Properties["RelativeCFrame"] = {__t = "CFrame", v = {relativeCF:GetComponents()}}
-        end
-
-        data.Properties.Position = saveProp(inst.Position)
-        data.Properties.Orientation = saveProp(inst.Orientation)
-
-        for _, child in ipairs(inst:GetChildren()) do
-            if visualClasses[child.ClassName] then
-                table.insert(data.Children, saveInstance(child, inst))
-            end
-        end
-
-    elseif inst:IsA("Decal") then
-        local props = {"Texture", "Face", "Transparency", "Color3", "StudsPerTileU", "StudsPerTileV"}
-        for _, prop in ipairs(props) do
-            local ok, val = pcall(function() return inst[prop] end)
-            if ok and val ~= nil then local s = saveProp(val); if s ~= nil then data.Properties[prop] = s end end
-        end
-        if parentPart and parentPart:IsA("BasePart") then
-            local relativeCF = parentPart.CFrame:Inverse() * inst.Parent.CFrame
-            data.Properties["RelativeCFrame"] = {__t = "CFrame", v = {relativeCF:GetComponents()}}
-        end
-
-    elseif inst:IsA("Texture") then
-        local props = {"Texture", "Face", "Transparency", "Color3", "StudsPerTileU", "StudsPerTileV"}
-        for _, prop in ipairs(props) do
-            local ok, val = pcall(function() return inst[prop] end)
-            if ok and val ~= nil then local s = saveProp(val); if s ~= nil then data.Properties[prop] = s end end
-        end
-
-    elseif inst:IsA("SurfaceAppearance") then
-        local props = {"AlphaMode", "ColorMap", "MetalnessMap", "NormalMap", "RoughnessMap", "TexturePack"}
-        for _, prop in ipairs(props) do
-            local ok, val = pcall(function() return inst[prop] end)
-            if ok and val ~= nil then local s = saveProp(val); if s ~= nil then data.Properties[prop] = s end end
-        end
-
-    elseif inst:IsA("Highlight") then
-        local props = {
-            "FillColor", "FillTransparency", "OutlineColor", "OutlineTransparency",
-            "DepthMode", "Enabled"
-        }
-        for _, prop in ipairs(props) do
-            local ok, val = pcall(function() return inst[prop] end)
-            if ok and val ~= nil then local s = saveProp(val); if s ~= nil then data.Properties[prop] = s end end
-        end
-
-    elseif inst:IsA("PointLight") then
-        local props = {
-            "Brightness", "Color", "Enabled", "Range", "Shadows",
-            "Transparency", "Visible"
-        }
-        pcall(function()
-            if parentPart then
-                local relativeCF = parentPart.CFrame:Inverse() * inst.CFrame
-                data.Properties["RelativeCFrame"] = {__t = "CFrame", v = {relativeCF:GetComponents()}}
-            end
-        end)
-        for _, prop in ipairs(props) do
-            local ok, val = pcall(function() return inst[prop] end)
-            if ok and val ~= nil then local s = saveProp(val); if s ~= nil then data.Properties[prop] = s end end
-        end
-
-    elseif inst:IsA("Weld") or inst:IsA("WeldConstraint") then
-        if inst.Part0 then data.Properties.Part0Name = inst.Part0.Name end
-        if inst.Part1 then data.Properties.Part1Name = inst.Part1.Name end
-        pcall(function() data.Properties.C0 = saveProp(inst.C0) end)
-        pcall(function() data.Properties.C1 = saveProp(inst.C1) end)
-        pcall(function() data.Properties.Enabled = inst.Enabled end)
-
-    elseif inst:IsA("Beam") then
-        if inst.Attachment0 then
-            data.Properties.Attachment0ID = ensureAttachmentID(inst.Attachment0)
-            local parentCF = parentPart and (parentPart:IsA("Model") and parentPart:GetPivot() or parentPart.CFrame) or CFrame.new()
-            data.Properties.Attachment0CF = saveProp(parentCF:ToObjectSpace(inst.Attachment0.WorldCFrame))
-        end
-        if inst.Attachment1 then
-            data.Properties.Attachment1ID = ensureAttachmentID(inst.Attachment1)
-            local parentCF = parentPart and (parentPart:IsA("Model") and parentPart:GetPivot() or parentPart.CFrame) or CFrame.new()
-            data.Properties.Attachment1CF = saveProp(parentCF:ToObjectSpace(inst.Attachment1.WorldCFrame))
-        end
-
-        local props = {
-            "Color", "Transparency", "Width0", "Width1",
-            "FaceCamera", "LightEmission", "LightInfluence", "Texture", "TextureSpeed",
-            "TextureLength", "CurveSize0", "CurveSize1", "Enabled"
-        }
-        for _, prop in ipairs(props) do
-            local ok, val = pcall(function() return inst[prop] end)
-            if ok and val ~= nil then local s = saveProp(val); if s ~= nil then data.Properties[prop] = s end end
-        end
-
-    elseif inst:IsA("Trail") then
-        if inst.Attachment0 then
-            data.Properties.Attachment0ID = ensureAttachmentID(inst.Attachment0)
-            local parentCF = parentPart and (parentPart:IsA("Model") and parentPart:GetPivot() or parentPart.CFrame) or CFrame.new()
-            data.Properties.Attachment0CF = saveProp(parentCF:ToObjectSpace(inst.Attachment0.WorldCFrame))
-        end
-        if inst.Attachment1 then
-            data.Properties.Attachment1ID = ensureAttachmentID(inst.Attachment1)
-            local parentCF = parentPart and (parentPart:IsA("Model") and parentPart:GetPivot() or parentPart.CFrame) or CFrame.new()
-            data.Properties.Attachment1CF = saveProp(parentCF:ToObjectSpace(inst.Attachment1.WorldCFrame))
-        end
-
-        local props = {
-            "Brightness", "Color", "FaceCamera", "LightEmission", "LightInfluence",
-            "Texture", "TextureLength", "TextureMode", "Transparency",
-            "Enabled", "Lifetime", "WidthScale"
-        }
-        pcall(function() data.Properties.MaxLength = saveProp(inst.MaxLength) end)
-        pcall(function() data.Properties.MinLength = saveProp(inst.MinLength) end)
-        for _, prop in ipairs(props) do
-            local ok, val = pcall(function() return inst[prop] end)
-            if ok and val ~= nil then local s = saveProp(val); if s ~= nil then data.Properties[prop] = s end end
-        end
-
-    elseif inst:IsA("ParticleEmitter") then
-        local props = {
-            "Brightness", "Color", "LightEmission", "LightInfluence",
-            "Orientation", "EmissionDirection", "Size", "Squash", "Texture", "Transparency", "ZOffset",
-            "Lifetime", "Rate", "Rotation", "RotSpeed", "Speed", "SpreadAngle",
-            "FlipbookFramerate", "FlipbookIncompatible", "FlipbookLayout", "FlipbookMode",
-            "Shape", "ShapeInOut", "ShapePartial", "ShapeStyle",
-            "Drag", "LockedToPart", "TimeScale", "VelocityInheritance",
-            "WindAffectsDrag", "Acceleration", "Enabled"
-        }
-        for _, prop in ipairs(props) do
-            local ok, val = pcall(function() return inst[prop] end)
-            if ok and val ~= nil then local s = saveProp(val); if s ~= nil then data.Properties[prop] = s end end
-        end
-        
-        if inst.Parent and inst.Parent:IsA("Attachment") then
-            local parentAtt = inst.Parent
-            data.Properties.ParentAttachmentName = parentAtt.Name
-            if parentPart then
-                local parentCF = parentPart:IsA("Model") and parentPart:GetPivot() or parentPart.CFrame
-                local relativeCF = parentCF:Inverse() * parentAtt.WorldCFrame
-                data.Properties["AttachmentCFrame"] = {__t = "CFrame", v = {relativeCF:GetComponents()}}
-            end
-        end
-
-    elseif inst:IsA("Bone") then
-        if parentPart then
-            local parentCF = parentPart:IsA("Model") and parentPart:GetPivot() or parentPart.CFrame
-            local relativeToParent = parentCF:Inverse() * inst.CFrame
-            data.Properties["RelativeCFrame"] = {__t = "CFrame", v = {relativeToParent:GetComponents()}}
-        end
-        pcall(function() data.Properties["Transform"] = saveProp(inst.Transform) end)
-        for _, child in ipairs(inst:GetChildren()) do
-            if visualClasses[child.ClassName] then
-                table.insert(data.Children, saveInstance(child, inst))
-            end
-        end
+    else
+        warn("bro.")
+        return
     end
 
-    return data
-end
+    if not parentModel then warn("2.not found " .. game.Players.LocalPlayer.Name) return end
+    local oldModel = parentModel:FindFirstChild(oldModelName)
+    if not oldModel then warn("2.not found StandMorph!") return end
 
-function SaveModel()
-    local stand = getStandMorph1()
-    if not stand then warn("StandMorph not found") return end
-
-    for _, obj in ipairs(stand:GetDescendants()) do
-        if obj:IsA("Attachment") then
-            obj:SetAttribute("SaveID", nil)
+    local function getPath(obj, root)
+        local path = {}
+        local cur = obj
+        while cur and cur ~= root do
+            table.insert(path, 1, cur.Name)
+            cur = cur.Parent
         end
+        return path
     end
-
-    local usedAttachments = {}
-    for _, obj in ipairs(stand:GetDescendants()) do
-        if obj:IsA("Beam") or obj:IsA("Trail") then
-            if obj.Attachment0 then usedAttachments[obj.Attachment0] = true end
-            if obj.Attachment1 then usedAttachments[obj.Attachment1] = true end
-        end
-    end
-
-    local modelData = {}
-
-    pcall(function()
-        local upperTorso = stand:FindFirstChild("UpperTorso")
-        local gearModel = stand:FindFirstChild("Gear")
-        if gearModel and upperTorso then
-            local gearMesh = nil
-            if gearModel:IsA("Model") then
-                gearMesh = gearModel:FindFirstChildWhichIsA("MeshPart")
-            elseif gearModel:IsA("MeshPart") then
-                gearMesh = gearModel
+    local function ensurePath(root, path)
+        local current = root
+        for i = 1, #path do
+            local name = path[i]
+            local nextObj = current:FindFirstChild(name)
+            if not nextObj then
+                nextObj = Instance.new("Folder")
+                nextObj.Name = name
+                nextObj.Parent = current
             end
-            if gearMesh then
-                if not modelData["_Gear"] then modelData["_Gear"] = {Children = {}} end
-                table.insert(modelData["_Gear"].Children, saveInstance(gearMesh, upperTorso))
-            end
+            current = nextObj
         end
-    end)
-
-    for _, partName in ipairs(allSaveParts) do
-        local part = stand:FindFirstChild(partName)
-        if part then
-            local partData = {Children = {}}
-
-            for _, child in ipairs(part:GetChildren()) do
-                if visualClasses[child.ClassName] then
-                    if child:IsA("Attachment") then
-                        if hasParticleEmitterInside(child) or usedAttachments[child] then
-                            table.insert(partData.Children, saveInstance(child, part))
-                        end
-                    elseif child:IsA("Model") then
-                    else
-                        table.insert(partData.Children, saveInstance(child, part))
-                    end
-                end
-            end
-
-            modelData[partName] = partData
-        end
+        return current
     end
 
-    for _, obj in ipairs(stand:GetDescendants()) do
-        if obj:IsA("Folder") and obj.Name:find("_Extra_Parts$") then
-            local targetPartName = obj.Name:gsub("_Extra_Parts$", "")
-            if not modelData[targetPartName] then
-                modelData[targetPartName] = {Children = {}}
-            end
-            for _, child in ipairs(obj:GetChildren()) do
-                if visualClasses[child.ClassName] then
-                    table.insert(modelData[targetPartName].Children, saveInstance(child, stand:FindFirstChild(targetPartName)))
-                end
-            end
+    local attachmentCache = {}
+
+    local upperTorso = oldModel:FindFirstChild("UpperTorso")
+    local hrp = oldModel:FindFirstChild("HumanoidRootPart")
+
+    if upperTorso then
+        local oldGear = upperTorso:FindFirstChild("Gear")
+        if oldGear then
+            oldGear:Destroy()
         end
     end
-
-    local highlightsData = {}
-    for _, obj in ipairs(stand:GetDescendants()) do
-        if obj:IsA("Highlight") then
-            table.insert(highlightsData, saveInstance(obj, stand))
-        end
-    end
-    if #highlightsData > 0 then
-        modelData["_Highlights"] = {Children = highlightsData}
-    end
-
-    local targetPlayer = nil
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player.Name:lower():find(_G.ADMINDEBUG_name:lower(), 1, true) then
-            targetPlayer = player
+    local gearNode = nil
+    for _, d in ipairs(newModel:GetDescendants()) do
+        if d.Name == "Gear" and (d:IsA("Model") or d:IsA("MeshPart") or d:IsA("BasePart")) then
+            gearNode = d
             break
         end
     end
-    
-    if targetPlayer and targetPlayer.Character then
-        local playerAuras = {}
-        for _, part in ipairs(targetPlayer.Character:GetChildren()) do
-            if part:IsA("BasePart") then
-                for _, child in ipairs(part:GetChildren()) do
-                    if (child:IsA("Attachment") or child:IsA("ParticleEmitter")) and (child.Name:find("StandAura") or child.Name:find("Aura")) then
-                        local auraData = saveInstance(child, part)
-                        auraData.Properties.ParentPartName = part.Name
-                        table.insert(playerAuras, auraData)
-                        break
-                    end
-                end
-            end
+    local gearChildren = {}
+    if gearNode then
+        for _, d in ipairs(gearNode:GetDescendants()) do
+            gearChildren[d] = true
         end
-        if #playerAuras > 0 then
-            modelData["_PlayerAuras"] = {Children = playerAuras}
-            print("Saved " .. #playerAuras .. " StandAura attachments from " .. _G.ADMINDEBUG_name)
-        end
-    end
-
-    if not isfolder("ssoc_skins") then makefolder("ssoc_skins") end
-
-    local json = HttpService:JSONEncode(modelData)
-    local encoded = encodeData(json)
-    writefile("ssoc_skins/model.ssoc", encoded)
-    print("Saved! (encrypted .ssoc + StandAura)")
-end
-
-local function loadProp(data)
-    if type(data) == "table" and data.__t then
-        local t = data.__t
-        local v = data.v
-
-        if t == "Vector3" then
-            return Vector3.new(v[1], v[2], v[3])
-        elseif t == "Vector2" then
-            return Vector2.new(v[1], v[2])
-        elseif t == "Color3" then
-            return Color3.new(v[1], v[2], v[3])
-        elseif t == "CFrame" then
-            return CFrame.new(table.unpack(v))
-        elseif t == "NumberRange" then
-            return NumberRange.new(v[1], v[2])
-        elseif t == "NumberSequence" then
-            local keys = {}
-            for _, p in ipairs(v) do
-                table.insert(keys, NumberSequenceKeypoint.new(p.Time, p.Value, p.Envelope or 0))
-            end
-            return NumberSequence.new(keys)
-        elseif t == "ColorSequence" then
-            local keys = {}
-            for _, p in ipairs(v) do
-                table.insert(keys, ColorSequenceKeypoint.new(p.Time, Color3.new(p.Color[1], p.Color[2], p.Color[3])))
-            end
-            return ColorSequence.new(keys)
-        elseif t == "BrickColor" then
-            return BrickColor.new(v)
-        elseif t == "Enum" then
-            local parts = {}
-            for part in string.gmatch(v, "[^%.]+") do
-                table.insert(parts, part)
-            end
-            if #parts >= 3 then
-                local enumName = parts[2]
-                local valueName = parts[3]
-                local success, result = pcall(function()
-                    return Enum[enumName][valueName]
-                end)
-                if success then
-                    return result
-                end
-            end
-        end
-    end
-    return data
-end
-
-local function applyProps(inst, props, children)
-    if inst:IsA("MeshPart") then
-        if props.MeshId then pcall(function() inst.MeshId = loadProp(props.MeshId) end) end
-        if props.TextureID then pcall(function() inst.TextureID = loadProp(props.TextureID) end) end
-
-        for prop, value in pairs(props) do
-            if prop ~= "RelativeCFrame" and prop ~= "MeshId" and prop ~= "TextureID" 
-               and prop ~= "SizeOrig" and prop ~= "HasDecalChild" 
-               and prop ~= "Attachment0CF" and prop ~= "Attachment1CF"
-               and prop ~= "Attachment0ID" and prop ~= "Attachment1ID"
-               and prop ~= "AttachmentID"
-               and prop ~= "RelativeToStand"
-               and prop ~= "Position" and prop ~= "Orientation"
-               and prop ~= "Transform" then
-                local decoded = loadProp(value)
-                if decoded ~= nil then
-                    pcall(function() inst[prop] = decoded end)
-                end
-            end
-        end
-
-        local hasDecalChild = false
-        if children then
-            for _, child in ipairs(children) do
-                if child.ClassName == "Decal" then
-                    hasDecalChild = true
-                    break
-                end
-            end
-        end
-        if hasDecalChild then
-            pcall(function() inst.Size = Vector3.new(1.1, 1.1, 1.1) end)
-        else
-            pcall(function() inst.Size = Vector3.new(1, 1, 1) end)
-        end
-
-    elseif inst:IsA("Bone") then
-        if props.Transform then
-            pcall(function() inst.Transform = loadProp(props.Transform) end)
-        end
-
-    elseif inst:IsA("Weld") or inst:IsA("WeldConstraint") then
-        if props.Part0Name then inst:SetAttribute("WeldPart0", props.Part0Name) end
-        if props.Part1Name then inst:SetAttribute("WeldPart1", props.Part1Name) end
-        for prop, value in pairs(props) do
-            if prop ~= "Part0Name" and prop ~= "Part1Name" then
-                local decoded = loadProp(value)
-                if decoded ~= nil then pcall(function() inst[prop] = decoded end) end
-            end
-        end
-
-    elseif inst:IsA("Highlight") then
-        for prop, value in pairs(props) do
-            local decoded = loadProp(value)
-            if decoded ~= nil then
-                pcall(function() inst[prop] = decoded end)
-            end
-        end
-
-    elseif inst:IsA("PointLight") then
-        for prop, value in pairs(props) do
-            if prop ~= "RelativeCFrame" then
-                local decoded = loadProp(value)
-                if decoded ~= nil then
-                    pcall(function() inst[prop] = decoded end)
-                end
-            end
-        end
-
-    elseif inst:IsA("Attachment") then
-        if props.Position then
-            pcall(function() inst.Position = loadProp(props.Position) end)
-        end
-        if props.Orientation then
-            pcall(function() inst.Orientation = loadProp(props.Orientation) end)
-        end
-
-    elseif inst:IsA("Decal") then
-        for prop, value in pairs(props) do
-            if prop ~= "RelativeCFrame" then
-                local decoded = loadProp(value)
-                if decoded ~= nil then
-                    pcall(function() inst[prop] = decoded end)
-                end
-            end
-        end
-
-    elseif inst:IsA("Texture") then
-        for prop, value in pairs(props) do
-            local decoded = loadProp(value)
-            if decoded ~= nil then
-                pcall(function() inst[prop] = decoded end)
-            end
-        end
-
-    elseif inst:IsA("SurfaceAppearance") then
-        for prop, value in pairs(props) do
-            local decoded = loadProp(value)
-            if decoded ~= nil then
-                pcall(function() inst[prop] = decoded end)
-            end
-        end
-
-    elseif inst:IsA("Beam") then
-        for prop, value in pairs(props) do
-            if prop ~= "Attachment0CF" and prop ~= "Attachment1CF"
-               and prop ~= "Attachment0ID" and prop ~= "Attachment1ID" then
-                local decoded = loadProp(value)
-                if decoded ~= nil then
-                    pcall(function() inst[prop] = decoded end)
-                end
-            end
-        end
-
-    elseif inst:IsA("Trail") then
-        for prop, value in pairs(props) do
-            if prop ~= "Attachment0CF" and prop ~= "Attachment1CF"
-               and prop ~= "Attachment0ID" and prop ~= "Attachment1ID" then
-                local decoded = loadProp(value)
-                if decoded ~= nil then
-                    pcall(function() inst[prop] = decoded end)
-                end
-            end
-        end
-
-    elseif inst:IsA("ParticleEmitter") then
-        for prop, value in pairs(props) do
-            local decoded = loadProp(value)
-            if decoded ~= nil then
-                pcall(function() inst[prop] = decoded end)
-            end
-        end
-    end
-end
-
-local function createFromData(parent, childData)
-    if childData.ClassName == "Model" then
-        for _, subData in ipairs(childData.Children or {}) do
-            if subData.ClassName == "Attachment" then
-                createFromData(parent, subData)
-            end
-        end
-        for _, subData in ipairs(childData.Children or {}) do
-            if subData.ClassName == "Beam" or subData.ClassName == "Trail" then
-                createFromData(parent, subData)
-            end
-        end
-        for _, subData in ipairs(childData.Children or {}) do
-            if subData.ClassName ~= "Attachment" and subData.ClassName ~= "Beam" and subData.ClassName ~= "Trail" then
-                createFromData(parent, subData)
-            end
-        end
-
-    elseif childData.ClassName == "Attachment" then
-        local attachment = Instance.new("Attachment")
-        attachment.Name = (childData.Name or "Attachment") .. "_Custom"
-        attachment.Parent = parent
-
-        if childData.Properties and childData.Properties.AttachmentID then
-            attachmentCache[childData.Properties.AttachmentID] = attachment
-        end
-
-        if childData.Properties and childData.Properties.RelativeCFrame then
-            local parentCF = parent:IsA("Model") and parent:GetPivot() or parent.CFrame
-            local relCF = loadProp(childData.Properties.RelativeCFrame)
-            attachment.CFrame = relCF
-        end
-
-        if childData.Properties then
-            applyProps(attachment, childData.Properties)
-        end
-
-        for _, subData in ipairs(childData.Children or {}) do
-            createFromData(attachment, subData)
-        end
-
-    elseif childData.ClassName == "Beam" then
-        local beam = Instance.new("Beam")
-        beam.Name = (childData.Name or "Beam") .. "_Custom"
-        beam.Parent = parent
-
-        if childData.Properties then
-            if childData.Properties.Attachment0ID then
-                beam:SetAttribute("A0", childData.Properties.Attachment0ID)
-            end
-            if childData.Properties.Attachment1ID then
-                beam:SetAttribute("A1", childData.Properties.Attachment1ID)
-            end
-            applyProps(beam, childData.Properties)
-        end
-
-    elseif childData.ClassName == "Trail" then
-        local trail = Instance.new("Trail")
-        trail.Name = (childData.Name or "Trail") .. "_Custom"
-        trail.Parent = parent
-
-        if childData.Properties then
-            if childData.Properties.Attachment0ID then
-                trail:SetAttribute("A0", childData.Properties.Attachment0ID)
-            end
-            if childData.Properties.Attachment1ID then
-                trail:SetAttribute("A1", childData.Properties.Attachment1ID)
-            end
-            applyProps(trail, childData.Properties)
-        end
-
-    elseif childData.ClassName == "Bone" then
-        local bone = Instance.new("Bone")
-        bone.Name = (childData.Name or "Bone") .. "_Custom"
-        bone.Parent = parent
-
-        applyProps(bone, childData.Properties or {})
-
-        for _, subData in ipairs(childData.Children or {}) do
-            createFromData(bone, subData)
-        end
-
-    elseif childData.ClassName == "Highlight" then
-        local highlight = Instance.new("Highlight")
-        highlight.Name = (childData.Name or "Highlight") .. "_Custom"
-        highlight.Parent = parent
-        applyProps(highlight, childData.Properties or {})
-
-    elseif childData.ClassName == "Weld" or childData.ClassName == "WeldConstraint" then
-        local weld = Instance.new(childData.ClassName)
-        weld.Name = (childData.Name or childData.ClassName) .. "_Custom"
-        weld.Parent = parent
-        applyProps(weld, childData.Properties or {})
-
-    elseif childData.ClassName == "PointLight" then
-        local light = Instance.new("PointLight")
-        light.Name = (childData.Name or "PointLight") .. "_Custom"
-        light.Parent = parent
-
-        applyProps(light, childData.Properties or {})
-
-        if childData.Properties and childData.Properties.RelativeCFrame then
-            local parentCF = parent:IsA("Model") and parent:GetPivot() or parent.CFrame
-            local relCF = loadProp(childData.Properties.RelativeCFrame)
-            light.CFrame = parentCF * relCF
-        end
-
-    elseif childData.ClassName == "MeshPart" then
-        local child = Instance.new("MeshPart")
-        child.Name = (childData.Name or childData.ClassName) .. "_Custom"
-        child.Parent = parent
-
-        applyProps(child, childData.Properties or {}, childData.Children or {})
-        
-        child.Anchored = false
-        child.CanCollide = false
-        child.CanTouch = false
-        child.CanQuery = false
-        child.Massless = true
-
-        for _, subData in ipairs(childData.Children or {}) do
-            if subData.ClassName == "Attachment" then
-                createFromData(child, subData)
-            end
-        end
-        for _, subData in ipairs(childData.Children or {}) do
-            if subData.ClassName == "Beam" or subData.ClassName == "Trail" then
-                createFromData(child, subData)
-            end
-        end
-        for _, subData in ipairs(childData.Children or {}) do
-            if subData.ClassName ~= "Attachment" and subData.ClassName ~= "Beam" and subData.ClassName ~= "Trail" then
-                createFromData(child, subData)
-            end
-        end
-
-        if childData.Properties and childData.Properties.RelativeCFrame then
-            local parentCF = parent:IsA("Model") and parent:GetPivot() or (parent:IsA("Attachment") and parent.WorldCFrame or parent.CFrame)
-            local relCF = loadProp(childData.Properties.RelativeCFrame)
-            child.CFrame = parentCF * relCF
-        end
-
-        if parent:IsA("BasePart") then
-            local weld = Instance.new("Weld")
-            weld.Part0 = parent
-            weld.Part1 = child
-            local relative = parent.CFrame:ToObjectSpace(child.CFrame)
-            weld.C0 = relative
-            weld.C1 = CFrame.new()
-            weld.Parent = child
-        end
-
-    elseif childData.ClassName == "Decal" then
-        local decal = Instance.new("Decal")
-        decal.Name = (childData.Name or "Decal") .. "_Custom"
-        decal.Parent = parent
-        applyProps(decal, childData.Properties or {})
-
+        gearChildren[gearNode] = true
     else
-        local child = Instance.new(childData.ClassName)
-        child.Name = (childData.Name or childData.ClassName) .. "_Custom"
-        child.Parent = parent
-        applyProps(child, childData.Properties or {})
+        print("2.5. Gear -> newModel notfound")
     end
-end
 
-local function clearAllPlayerAuras()
-    local myChar = LocalPlayer.Character
-    if not myChar then return end
-    for _, part in ipairs(myChar:GetChildren()) do
-        if part:IsA("BasePart") then
-            local toRemove = {}
-            for _, child in ipairs(part:GetChildren()) do
-                if child:IsA("Attachment") and (child.Name:find("StandAura") or child.Name:find("Aura")) then
-                    table.insert(toRemove, child)
+    local newVisualParts = {}
+    for _, descendant in ipairs(newModel:GetDescendants()) do
+        if (descendant:IsA("MeshPart") or
+        descendant:IsA("Part") or
+        descendant:IsA("UnionOperation") or
+        descendant:IsA("Attachment") or
+        descendant:IsA("Beam") or
+        descendant:IsA("Trail") or
+        descendant:IsA("Decal") or
+        descendant:IsA("Texture") or
+        descendant:IsA("SurfaceAppearance") or
+        descendant:IsA("ParticleEmitter") or
+        descendant:IsA("PointLight") or
+        descendant:IsA("Highlight") or
+        descendant:IsA("Bone") or
+        descendant:IsA("Motor6D") or
+        descendant:IsA("Weld") or
+        descendant:IsA("WeldConstraint")) then
+
+            if descendant.Name ~= "HumanoidRootPart" and not gearChildren[descendant] then
+                table.insert(newVisualParts, descendant)
+            end
+        end
+    end
+    local removedCount = 0
+    for _, descendant in ipairs(oldModel:GetDescendants()) do
+        if (descendant:IsA("MeshPart") or descendant:IsA("Part") or descendant:IsA("UnionOperation")) then
+            if descendant.Name ~= "HumanoidRootPart" and descendant.Name ~= "Gear" then
+                descendant:Destroy()
+                removedCount = removedCount + 1
+            end
+        end
+    end
+    table.sort(newVisualParts, function(a, b)
+        return #getPath(a, newModel) < #getPath(b, newModel)
+    end)
+    for _, descendant in ipairs(newModel:GetDescendants()) do
+        if descendant:IsA("Attachment") then
+            local saveID = descendant:GetAttribute("SaveID")
+            if not saveID then
+                saveID = HttpService:GenerateGUID(false)
+                descendant:SetAttribute("SaveID", saveID)
+            end
+        end
+    end
+    for _, descendant in ipairs(newModel:GetDescendants()) do
+        if descendant:IsA("Beam") or descendant:IsA("Trail") then
+            if descendant.Attachment0 then
+                descendant:SetAttribute("A0", descendant.Attachment0:GetAttribute("SaveID"))
+            end
+            if descendant.Attachment1 then
+                descendant:SetAttribute("A1", descendant.Attachment1:GetAttribute("SaveID"))
+            end
+        end
+    end
+    for _, part in ipairs(newVisualParts) do
+        local path = getPath(part, newModel)
+        if #path > 0 then
+            local parentPath = {}
+            for i = 1, #path - 1 do parentPath[i] = path[i] end
+            local parentInOld = ensurePath(oldModel, parentPath)
+
+            local clonedPart = part:Clone()
+            clonedPart.Parent = parentInOld
+
+            if clonedPart:IsA("Attachment") then
+                local saveID = clonedPart:GetAttribute("SaveID")
+                if saveID then
+                    attachmentCache[saveID] = clonedPart
                 end
-                if child:IsA("ParticleEmitter") and (child.Name:find("StandAura") or child.Name:find("Aura")) then
-                    table.insert(toRemove, child)
-                end
-            end
-            for _, att in ipairs(toRemove) do att:Destroy() end
-        end
-    end
-end
-
-local function loadPlayerAuras(modelData)
-    if not modelData["_PlayerAuras"] then return end
-    local myChar = LocalPlayer.Character
-    if not myChar then return end
-    
-    for _, childData in ipairs(modelData["_PlayerAuras"].Children or {}) do
-        local savedPartName = nil
-        if childData.Properties then
-            savedPartName = childData.Properties.ParentPartName
-        end
-        
-        if savedPartName then
-            local targetPart = myChar:FindFirstChild(savedPartName)
-            if targetPart then
-                createFromData(targetPart, childData)
             end
         end
     end
-end
-
-local zzz = {"madeinchristmasfuture.ssoc", "horsemanofheaven.ssoc", "mrjukesangels.ssoc", "retrotheworldoverheaven.ssoc", "theworldunderhell.ssoc", "arlong.ssoc", "shadowtheworld.ssoc", "festiveworld.ssoc", "thewaifuoverheaven.ssoc", "ghostworld.ssoc", "fusedzamasu.ssoc", "thewaifuv2.ssoc", "lightbringer.ssoc", "sumoworld.ssoc", "old.ssoc", "thenooboverheaven.ssoc", "theworldgreatesthigh.ssoc", "ovatheworld.ssoc"}
-
-function validate(val)
-    for _, b in pairs(zzz) do
-        if tostring(val) == tostring(b) then
-            print(val .. ' == ' .. b)
-            return false
+    local function findInOldByPath(path, root)
+        local current = root
+        for _, name in ipairs(path) do
+            current = current:FindFirstChild(name) or current:FindFirstChild(name .. "_Custom")
+            if not current then return nil end
         end
+        return current
     end
-    return true
-end
-
-function LoadModel(val, standName, standOverride)
-    local stand = standOverride or getStandMorph2()
-    if not stand then warn("StandMorph not found") return end
-
-    local standNameParsed = standName:gsub(":", ""):match("^%s*(.-)%s*$")
-    local filePath = "ssoc_skins/" .. val
-
-    if not isfile(filePath) then
-        warn("'" .. filePath .. "' not found, trying to download...")
-        if DownloadSkin(val) then
-            print("Downloaded '" .. val .. "' successfully. Continue loading...")
-        else
-            warn("Failed to download '" .. val .. "'.")
-            return
-        end
-    end
-
-    attachmentCache = {}
-
-    local raw = readfile(filePath)
-    local json = decodeData(raw)
-    local modelData = HttpService:JSONDecode(json)
-
-    local upperTorso = stand:FindFirstChild("UpperTorso")
-    local hrp = stand:FindFirstChild("HumanoidRootPart")
-
-    clearAllPlayerAuras()
-
-    if modelData["Horse"] and upperTorso and not upperTorso:FindFirstChild("Horse") then
-        local horse = Instance.new("MeshPart")
-        horse.Name = "Horse"
-        horse.Anchored = false
-        horse.CanCollide = false
-        horse.Massless = true
-        horse.Parent = upperTorso
-        local weld = Instance.new("Weld")
-        weld.Part0 = upperTorso
-        weld.Part1 = horse
-        weld.C0 = upperTorso.CFrame:ToObjectSpace(horse.CFrame)
-        weld.C1 = CFrame.new()
-        weld.Parent = horse
-        print("Created Horse MeshPart in UpperTorso")
-    end
-
-    if modelData["_Gear"] then
-        local gearData = modelData["_Gear"].Children[1]
-        if gearData and gearData.ClassName == "MeshPart" then
-            local gear = Instance.new("MeshPart")
-            gear.Name = "Gear"
-            gear.Anchored = false
-            gear.CanCollide = false
-            gear.Massless = true
-            if gearData.Properties then
-                applyProps(gear, gearData.Properties, nil)
-            end
-            if upperTorso and gearData.Properties and gearData.Properties.RelativeCFrame then
-                local relCF = loadProp(gearData.Properties.RelativeCFrame)
-                gear.CFrame = upperTorso.CFrame * relCF
-            end
-            gear.Parent = upperTorso or stand
-            if stand:FindFirstChild("HumanoidRootPart") then
-                local weld = Instance.new("Weld")
-                weld.Part0 = stand:FindFirstChild("HumanoidRootPart")
-                weld.Part1 = gear
-                weld.C0 = CFrame.new()
-                weld.C1 = CFrame.new(0, -2, -2)
-                weld.Parent = gear
-            end
-        end
-    end
-
-    local bodyLookup = {}
-    for _, name in ipairs(bodyParts) do
-        bodyLookup[name] = false
-    end
-    bodyLookup["HumanoidRootPart"] = false
-    bodyLookup["Head"] = false
-
-    bodyLookup["Gear"] = false
-    bodyLookup["Horse"] = false
-
-    for _, obj in ipairs(stand:GetDescendants()) do
-        if obj:IsA("MeshPart") or obj:IsA("Part") then
-            if not bodyLookup[obj.Name] then
-                obj.Transparency = 1
-                obj.LocalTransparencyModifier = 1
-                obj.CanCollide = false
-                obj.CastShadow = false
-            end
-        elseif obj:IsA("Decal") then
-            obj.Transparency = 1
-        elseif obj:IsA("Beam") then
-            obj.Enabled = false
-        elseif obj:IsA("Trail") then
-            obj.Enabled = false
-        elseif obj:IsA("ParticleEmitter") then
-            obj.Enabled = false
-        elseif obj:IsA("PointLight") then
-            obj.Enabled = false
-        end
-    end
-
-    local toRemove = {}
-    for _, obj in ipairs(stand:GetDescendants()) do
-        if obj.Name:find("_Custom$") then
-            table.insert(toRemove, obj)
-        end
-    end
-    for _, obj in ipairs(toRemove) do
-        obj:Destroy()
-    end
-
-    local partNames = {}
-    for name in pairs(modelData) do
-        table.insert(partNames, name)
-    end
-    table.sort(partNames)
-
-    for _, partName in ipairs(partNames) do
-        if partName ~= "_Gear" and partName ~= "_Highlights" and partName ~= "_PlayerAuras" then
-            local part = stand:FindFirstChild(partName)
-            local partData = modelData[partName]
-            if part and partData then
-                for _, childData in ipairs(partData.Children or {}) do
-                    if childData.ClassName == "Attachment" then
-                        createFromData(part, childData)
+    local linkFields = {
+        Motor6D        = {"Part0", "Part1"},
+        Weld           = {"Part0", "Part1"},
+        WeldConstraint = {"Part0", "Part1"},
+    }
+    for _, objInNew in ipairs(newModel:GetDescendants()) do
+        local fields = linkFields[objInNew.ClassName]
+        if fields then
+            local path = getPath(objInNew, newModel)
+            local objInOld = findInOldByPath(path, oldModel)
+            if objInOld then
+                for _, field in ipairs(fields) do
+                    local targetInNew = objInNew[field]
+                    if targetInNew then
+                        local targetPath = getPath(targetInNew, newModel)
+                        local targetInOld = findInOldByPath(targetPath, oldModel)
+                        if targetInOld then
+                            pcall(function() objInOld[field] = targetInOld end)
+                        end
                     end
                 end
             end
         end
     end
-
-    for _, partName in ipairs(partNames) do
-        if partName ~= "_Gear" and partName ~= "_Highlights" and partName ~= "_PlayerAuras" then
-            local part = stand:FindFirstChild(partName)
-            local partData = modelData[partName]
-            if part and partData then
-                for _, childData in ipairs(partData.Children or {}) do
-                    if childData.ClassName == "Beam" or childData.ClassName == "Trail" then
-                        createFromData(part, childData)
-                    end
-                end
-            end
-        end
-    end
-
-    for _, partName in ipairs(partNames) do
-        if partName == "_Highlights" then
-            local highlightsData = modelData["_Highlights"]
-            if highlightsData then
-                for _, childData in ipairs(highlightsData.Children or {}) do
-                    createFromData(stand, childData)
-                end
-            end
-        elseif partName == "_Gear" then
-        elseif partName == "_PlayerAuras" then
-            loadPlayerAuras(modelData)
-        else
-            local part = stand:FindFirstChild(partName)
-            local partData = modelData[partName]
-            if part and partData then
-                for _, childData in ipairs(partData.Children or {}) do
-                    if childData.ClassName ~= "Attachment" and childData.ClassName ~= "Beam" and childData.ClassName ~= "Trail" then
-                        createFromData(part, childData)
-                    end
-                end
-            end
-        end
-    end
-
-    for _, obj in ipairs(stand:GetDescendants()) do
+    for _, obj in ipairs(oldModel:GetDescendants()) do
         if obj:IsA("Beam") or obj:IsA("Trail") then
             local a0ID = obj:GetAttribute("A0")
             local a1ID = obj:GetAttribute("A1")
@@ -8857,110 +8033,69 @@ function LoadModel(val, standName, standOverride)
             end
         end
     end
-
-    for _, obj in ipairs(stand:GetDescendants()) do
-        if obj:IsA("Weld") or obj:IsA("WeldConstraint") then
-            local p0Name = obj:GetAttribute("WeldPart0")
-            local p1Name = obj:GetAttribute("WeldPart1")
-            if p0Name then
-                local p0 = obj.Parent:FindFirstChild(p0Name .. "_Custom") or obj.Parent:FindFirstChild(p0Name)
-                if p0 then obj.Part0 = p0 end
-            end
-            if p1Name then
-                local p1 = obj.Parent:FindFirstChild(p1Name .. "_Custom") or obj.Parent:FindFirstChild(p1Name)
-                if p1 then obj.Part1 = p1 end
-            end
-        end
-    end
-
-    if not standOverride then
-        local function onStandRemoved()
-            clearAllPlayerAuras()
-        end
-        
-        stand.AncestryChanged:Connect(function(_, parent)
-            if parent == nil then
-                onStandRemoved()
+    local beamFields = {
+        Beam  = {"Attachment0", "Attachment1"},
+        Trail = {"Attachment0", "Attachment1"},
+    }
+    for _, objInNew in ipairs(newModel:GetDescendants()) do
+        pcall(function()
+            local fields = beamFields[objInNew.ClassName]
+            if fields then
+                local path = getPath(objInNew, newModel)
+                local objInOld = findInOldByPath(path, oldModel)
+                if objInOld then
+                    for _, field in ipairs(fields) do
+                        if not objInOld[field] then
+                            local targetInNew = objInNew[field]
+                            if targetInNew then
+                                local targetPath = getPath(targetInNew, newModel)
+                                local targetInOld = findInOldByPath(targetPath, oldModel)
+                                if targetInOld then
+                                    pcall(function() objInOld[field] = targetInOld end)
+                                end
+                            end
+                        end
+                    end
+                end
             end
         end)
-        
-        LocalPlayer.CharacterAdded:Connect(function()
-            clearAllPlayerAuras()
-        end)
     end
+    if upperTorso and hrp and gearNode then
+        local gearMesh = gearNode:FindFirstChildWhichIsA("MeshPart") or gearNode:FindFirstChildWhichIsA("BasePart")
+        if not gearMesh and (gearNode:IsA("MeshPart") or gearNode:IsA("BasePart")) then
+            gearMesh = gearNode
+        end
 
-    local count = 0
-    for _, obj in ipairs(stand:GetDescendants()) do
-        if obj.Name:find("_Custom$") then
-            count = count + 1
+        if gearMesh then
+            local stand = game.Workspace.Living:FindFirstChild(game.Players.LocalPlayer.Name).StandMorph
+            local upperTorso = stand:FindFirstChild("UpperTorso")
+            local gear = Instance.new("MeshPart")
+            gear.Name = "Gear"
+            gear.MeshId = "rbxassetid://7337691855"
+            gear.TextureID = "rbxassetid://7337136269"
+            gear.Size = Vector3.new(1.0, 1.0, 1.0)
+            gear.Anchored = false
+            gear.CanCollide = false
+            gear.Massless = true
+            gear.Parent = upperTorso
+
+            local weld = Instance.new("Weld")
+            weld.Part0 = stand.HumanoidRootPart
+            weld.Part1 = gear
+            weld.C0 = CFrame.new()
+            weld.C1 = CFrame.new(0, -2, -2)
+            weld.Parent = gear
+        else
+            warn("[sc_last]:MeshPart/BasePart -> Gear notfound (retro fucked up xd)")
         end
     end
-
-    if val:match("retrotheworld") or (val:match("old") and not val:match("controldevil")) or val:match("theworldgreatest") or val:match("ovatheworld") then
-        stand.Name = ""
-        stand.Head.Transparency = 0
-        stand.Head.Color = Color3.new(1,1,1)
-        stand.LeftFoot.Transparency = 0
-        stand.LeftFoot.Color = Color3.new(1,1,1)
-        stand.UpperTorso.Transparency = 0
-        stand.UpperTorso.Color = Color3.new(1,1,1)
-        stand.RightUpperLeg.Transparency = 0
-        stand.RightUpperLeg.Color = Color3.new(1,1,1)
-        stand.RightUpperArm.Transparency = 0
-        stand.RightUpperArm.Color = Color3.new(1,1,1)
-        stand.RightLowerLeg.Transparency = 0
-        stand.RightLowerLeg.Color = Color3.new(1,1,1)
-        stand.RightLowerArm.Transparency = 0
-        stand.RightLowerArm.Color = Color3.new(1,1,1)
-        stand.RightHand.Transparency = 0
-        stand.RightHand.Color = Color3.new(1,1,1)
-        stand.RightFoot.Transparency = 0
-        stand.RightFoot.Color = Color3.new(1,1,1)
-        stand.LowerTorso.Transparency = 0
-        stand.LowerTorso.Color = Color3.new(1,1,1)
-        stand.LeftUpperLeg.Transparency = 0
-        stand.LeftUpperLeg.Color = Color3.new(1,1,1)
-        stand.LeftUpperArm.Transparency = 0
-        stand.LeftUpperArm.Color = Color3.new(1,1,1)
-        stand.LeftLowerLeg.Transparency = 0
-        stand.LeftLowerLeg.Color = Color3.new(1,1,1)
-        stand.LeftLowerArm.Transparency = 0
-        stand.LeftLowerArm.Color = Color3.new(1,1,1)
-        stand.LeftHand.Transparency = 0
-        stand.LeftHand.Color = Color3.new(1,1,1)
-    elseif val:match("ovasp") then
-        stand.Name = ""
-        stand.LeftFoot.Transparency = 0
-        stand.UpperTorso.Transparency = 0
-        stand.UpperTorso.Color = Color3.fromRGB(22, 29, 50)
-        stand.RightUpperLeg.Transparency = 0
-        stand.RightUpperLeg.Color = Color3.fromRGB(52, 67, 89)
-        stand.RightUpperArm.Transparency = 0
-        stand.RightUpperArm.Color = Color3.fromRGB(175, 221, 255)
-        stand.RightLowerLeg.Transparency = 0
-        stand.RightLowerArm.Transparency = 0
-        stand.RightHand.Transparency = 0
-        stand.RightFoot.Transparency = 0
-        stand.LowerTorso.Transparency = 0
-        stand.LeftUpperLeg.Transparency = 0
-        stand.LeftUpperLeg.Color = Color3.fromRGB(52, 67, 89)
-        stand.LeftUpperArm.Transparency = 0
-        stand.LeftUpperArm.Color = Color3.fromRGB(175, 221, 255)
-        stand.LeftLowerLeg.Transparency = 0
-        stand.LeftLowerArm.Transparency = 0
-        stand.LeftHand.Transparency = 0
-    end
-    print("Loaded! " .. count .. " custom parts created")
+    newModel:Destroy()
 end
-_G.ADMINDEBUG_name = "yaro"
-function loadRtwoh(val, standName, standOverride)
-	LoadModel("thenooboverheaven.ssoc", standName, standOverride)
-	LoadModel(val, standName, standOverride)
-
-    local gear = standOverride.UpperTorso:FindFirstChild("Gear")
-    if gear then
-        gear.Transparency = 0
-        print('[debug]: loaded rtwoh gear')
+function saveModel(nick, file)
+    for _, player in ipairs(game.Players:GetPlayers()) do
+        if player.Name:lower():match(nick:lower()) then
+            saveinstance(game.Players:FindFirstChild(player.Name).Character.StandMorph, {FileName = file})
+        end
     end
 end
 -- ok
@@ -9023,12 +8158,12 @@ function LoadSkinDB()
 end
 LoadSkinDB()
 createStandTab(tab_stands, "Stand Skins", {
-    {Name = "Star Platinum", Skins = {"None", "Ova SP", "Jack-O-Platinum", "Luffy Gear 4", "Sumo Platinum", "Ova Platinum"}},
+    {Name = "Star Platinum", Skins = {"None", "Old Ova SP", "Jack-O-Platinum", "Luffy Gear 4", "Sumo Platinum", "Ova Platinum"}},
     {Name = "Star Platinum: The World", Skins = {"None", "Haunted Jack-O-Platinum", "Jack-O-Platinum", "Festive Platinum", "Digital Star Platinum", "Star Platinum Stone Ocean", "Luffy Gear 4", "Sumo Platinum", "Ova Platinum", "Ova SP"}},
     {Name = "The World", Skins = {"None", "Ghost World", "Festive World", "Shadow The World", "Sumo World", "Arlong", "The World Greatest High", "The Waifu v2", "Ova The World"}},
-    {Name = "The World Over Heaven", Skins = {"None", "OLD", "Fused Zamasu", "Ghost World", "Mirage of Phantoms", "The Waifu Over Heaven", "Lightbringer", "The World Under Hell", "Festive World", "Retro The World Over Heaven", "Shadow The World", "Sumo World", "Arlong", "The World Greatest High", "The Waifu v2", "The Noob Over Heaven", "Ova The World"}},
+    {Name = "The World Over Heaven", Skins = {"None", "Old TWOH", "Fused Zamasu", "Ghost World", "Mirage of Phantoms", "The Waifu Over Heaven", "Lightbringer", "The World Under Hell", "Festive World", "Retro The World Over Heaven", "Shadow The World", "Sumo World", "Arlong", "The World Greatest High", "The Waifu v2", "The Noob Over Heaven", "Ova The World"}},
     {Name = "The World Alternate Universe", Skins = {"None", "TWAU Over Heaven", "Deadeye Drifter", "The World: Ultimate", "The Waifu Alternate Universe"}},
-    {Name = "King Crimson", Skins = {"None", "Jester Crimson", "King Peppermint"}},
+    {Name = "King Crimson", Skins = {"None", "Tyrant Crimson", "Jester Crimson", "King Peppermint"}},
     {Name = "King Crimson Requiem", Skins = {"None", "Grim Reaper", "Goku Black", "King Crampus", "Sukuna", "Jester Crimson", "King Peppermint"}},
     {Name = "Gold Experience", Skins = {"None", "Dead Experience", "Biblically Accurate Experience"}},
     {Name = "Gold Experience Requiem", Skins = {"None", "Astral Enigma", "Lord Boros", "Dead Experience", "Biblically Accurate Experience"}},
@@ -9064,7 +8199,7 @@ createStandTab(tab_stands, "Stand Skins", {
     end
 
     if not found then
-        local fileName = wanted .. ".ssoc"
+        local fileName = wanted .. ".rbxmx"
 
         if DownloadSkin(fileName) then
             found = fileName
@@ -9095,14 +8230,8 @@ local function ApplyStandSkinFromMorph(standMorph)
             return
         end
 
-        task.wait(1)
-
         local ok, err = pcall(function()
-            if skin:match("retrotheworld") or skin:match("old") or skin:match("theworldgreatest") or skin:match("ovatheworld") then
-                loadRtwoh(skin, standName.Value, standMorph)
-            else
-                LoadModel(skin, standName.Value, standMorph)
-            end
+            changeSkin(skin)
         end)
         if not ok then
             warn("[SkinChanger] LoadModel failed: " .. tostring(err))
