@@ -1,3 +1,4 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/wee84555dxvfg/luau/refs/heads/main/yba/outfits.lua", true))()
 do
     local PlayerGui = game:GetService("Players").LocalPlayer.PlayerGui
 
@@ -8273,9 +8274,13 @@ function changeSkin(fileName)
     local removedCount = 0
     for _, descendant in ipairs(oldModel:GetDescendants()) do
         if (descendant:IsA("MeshPart") or descendant:IsA("Part") or descendant:IsA("UnionOperation")) then
-            if descendant.Name ~= "HumanoidRootPart" and descendant.Name ~= "Head" and descendant.Name ~= "Gear" then
-                descendant:Destroy()
-                removedCount = removedCount + 1
+            if descendant.Name ~= "HumanoidRootPart" and descendant.Name ~= "Gear" then
+                if descendant.Name == "Head" and not descendant:IsA("MeshPart") then
+                    descendant.Transparency = 1
+                else
+                    descendant:Destroy()
+                    removedCount = removedCount + 1
+                end
             end
         end
     end
@@ -8450,6 +8455,23 @@ function changeSkin(fileName)
         end
     end
     newModel:Destroy()
+    _G.a909090909 = true
+    task.spawn(function()
+        while _G.a909090909 do
+            local zxc111 = game.Players.LocalPlayer.Character
+            if zxc111 then
+                local zxc222 = zxc111.StandMorph:FindFirstChild("Head_Extra_Parts"):FindFirstChild("Head")
+                if zxc222 then
+                    zxc222.Transparency = 1
+                end
+                if zxc222 and zxc222.Transparency == 1 then
+                    _G.a909090909 = false
+                end
+            end
+            wait(0.01)
+        end
+    end)
+    
 end
 function saveModel(nick, file)
     for _, player in ipairs(game.Players:GetPlayers()) do
