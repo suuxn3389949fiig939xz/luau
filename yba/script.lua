@@ -174,7 +174,10 @@ do
         standAuraRgb = false,
         standAuraR = 0,
         standAuraG = 0,
-        standAuraB = 0
+        standAuraB = 0,
+
+        customSkins = false,
+        customSkin = "None",
     }
 
     local defaultKeybinds = {
@@ -2411,79 +2414,6 @@ end)
 
 
 -- old shi
-function toggleOldSpSummon(bool)
-    if not bool then
-        if _G.ggwpqqq then
-            _G.ggwpqqq:Disconnect()
-        end
-        return
-    end
-
-    local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
-    local plr = Players.LocalPlayer
-    local played = false
-    function getRoot()
-        local living = workspace:FindFirstChild("Living")
-        if not living then return nil end
-        local char = living:FindFirstChild(plr.Name)
-        if not char then return nil end
-        return char:FindFirstChild("HumanoidRootPart")
-    end
-    _G.ggwpqqq = RunService.RenderStepped:Connect(function()
-        local stats = plr:FindFirstChild("PlayerStats")
-        if not stats then return end
-        local stand = stats:FindFirstChild("Stand")
-        if not stand then return end
-        local living = workspace:FindFirstChild("Living")
-        if not living then return end
-        local char = living:FindFirstChild(plr.Name)
-        if not char then return end
-        local summoned = char:FindFirstChild("SummonedStand")
-        if stand.Value == "Star Platinum" and summoned and summoned.Value == true then
-            if not played then
-                played = true
-                local root = getRoot()
-                if not root then return end
-                local sound = Instance.new("Sound")
-                sound.SoundId = "rbxassetid://4080511682"
-                sound.Volume = 1
-                sound.RollOffMaxDistance = 60
-                sound.Parent = root
-                sound:Play()
-                game:GetService("Debris"):AddItem(sound, 5)
-            end
-        elseif stand.Value == "The World Alternate Universe" and summoned and summoned.Value == true then
-            if not played then
-                played = true
-                local root = getRoot()
-                if not root then return end
-                local sound = Instance.new("Sound")
-                sound.SoundId = "rbxassetid://4080511682"
-                sound.Volume = 1
-                sound.RollOffMaxDistance = 60
-                sound.Parent = root
-                sound:Play()
-                game:GetService("Debris"):AddItem(sound, 5)
-            end
-        elseif stand.Value == "The World" and summoned and summoned.Value == true then
-            if not played then
-                played = true
-                local root = getRoot()
-                if not root then return end
-                local sound = Instance.new("Sound")
-                sound.SoundId = "rbxassetid://4080511682"
-                sound.Volume = 1
-                sound.RollOffMaxDistance = 60
-                sound.Parent = root
-                sound:Play()
-                game:GetService("Debris"):AddItem(sound, 5)
-            end
-        else
-            played = false
-        end
-    end)
-end
 local poses = {
     ["Old SP"] = { player = "6048287469", stand = "6048287117" },
     ["Old KC"] = { player = "4490526328", stand = "6048281381" },
@@ -7213,6 +7143,23 @@ Library:CreateToggle(visualsSection, "Remove Stand's Barrage", _G.Config.removeB
     end
     SaveConfig()
 end)
+local skinChangerSection = Library:CreateFunctionTab(tab_misc, "Skin Changer")
+local finishersList = {"Tom", "Huh", "Huh #2", "GET OUT", "Bruh Moment", "God's Lightning", "Pillarman", "Sub-Zero", "Wither", "Lineage Wipe", "Minecraft", "Killer Queen Detonate", "Shiza", "Gate of Babylon", "Aincrad", "Announcer", "Hyperlaser", "Vampire Ripple", "Disintegrate"}
+Library:CreateDropdown(skinChangerSection, "Finishers", finishersList, _G.Config.Finisher, false, function(val)
+    _G.Config.Finisher = val
+    SaveConfig()
+end)
+local itemSkinsList = {"...", "Bone Gloves", "Festive Gloves", "Boxing Claws"}
+Library:CreateDropdown(skinChangerSection, "Gloves Skin", itemSkinsList, _G.Config.itemSkinGloves, false, function(val)
+    _G.Config.itemSkinGloves = val
+    if val ~= "..." then
+        local succ, err = pcall(function()
+            skinChanger(_G.Config.itemSkinGloves)
+        end)
+        if not succ then warn("[SKIN CHANGER.ITEM] " .. err) end
+    end
+    SaveConfig()
+end)
 Library:CreateToggle(removalsSection, "Mobile UI", _G.Config.mobileUi, function(val)
     _G.Config.mobileUi = val
     if _G.mbbbz then _G.mbbbz:Disconnect() end
@@ -7611,24 +7558,6 @@ Event.OnClientEvent:Connect(function(signal, data)
     end
 end)
 
-local skinChangerSection = Library:CreateFunctionTab(tab_misc, "Skin Changer")
-local finishersList = {"Tom", "Huh", "Huh #2", "GET OUT", "Bruh Moment", "God's Lightning", "Pillarman", "Sub-Zero", "Wither", "Lineage Wipe", "Minecraft", "Killer Queen Detonate", "Shiza", "Gate of Babylon", "Aincrad", "Announcer", "Hyperlaser", "Vampire Ripple", "Disintegrate"}
-Library:CreateDropdown(skinChangerSection, "Finishers", finishersList, _G.Config.Finisher, false, function(val)
-    _G.Config.Finisher = val
-    SaveConfig()
-end)
-local itemSkinsList = {"...", "Bone Gloves", "Festive Gloves", "Boxing Claws"}
-Library:CreateDropdown(skinChangerSection, "Gloves Skin", itemSkinsList, _G.Config.itemSkinGloves, false, function(val)
-    _G.Config.itemSkinGloves = val
-    if val ~= "..." then
-        local succ, err = pcall(function()
-            skinChanger(_G.Config.itemSkinGloves)
-        end)
-        if not succ then warn("[SKIN CHANGER.ITEM] " .. err) end
-    end
-    SaveConfig()
-end)
-
 
 if _G.miscVisualConn then
     _G.miscVisualConn:Disconnect()
@@ -7836,11 +7765,12 @@ function changeSkin(fileName)
 
     local HttpService = game:GetService("HttpService")
 
-    fileName = "ssoc_skins/" .. fileName 
+    local fileName2 =  fileName .. ".rbxmx"
+
     local newModel = nil
     if getcustomasset and isfile then
-        if isfile(fileName) then
-            local assetId = getcustomasset(fileName)
+        if isfile(fileName2) then
+            local assetId = getcustomasset(fileName2)
             local success, objects = pcall(function()
                 return game:GetObjects(assetId)
             end)
@@ -7851,7 +7781,7 @@ function changeSkin(fileName)
                 return
             end
         else
-            warn("1.not found: " .. fileName)
+            warn("1.not found: " .. fileName2)
             return
         end
     else
@@ -7911,8 +7841,6 @@ function changeSkin(fileName)
             gearChildren[d] = true
         end
         gearChildren[gearNode] = true
-    else
-        print("2.5. Gear -> newModel notfound")
     end
 
     local newVisualParts = {}
@@ -7923,7 +7851,7 @@ function changeSkin(fileName)
         descendant:IsA("Attachment") or
         descendant:IsA("Beam") or
         descendant:IsA("Trail") or
-        descendant:IsA("Decal") or
+        --descendant:IsA("Decal") or
         descendant:IsA("Texture") or
         descendant:IsA("SurfaceAppearance") or
         descendant:IsA("ParticleEmitter") or
@@ -7934,7 +7862,7 @@ function changeSkin(fileName)
         descendant:IsA("Weld") or
         descendant:IsA("WeldConstraint")) then
 
-            if descendant.Name ~= "HumanoidRootPart" and not gearChildren[descendant] then
+            if descendant.Name ~= "HumanoidRootPart" and descendant.Name ~= "Head" and not gearChildren[descendant] then
                 table.insert(newVisualParts, descendant)
             end
         end
@@ -7943,8 +7871,15 @@ function changeSkin(fileName)
     for _, descendant in ipairs(oldModel:GetDescendants()) do
         if (descendant:IsA("MeshPart") or descendant:IsA("Part") or descendant:IsA("UnionOperation")) then
             if descendant.Name ~= "HumanoidRootPart" and descendant.Name ~= "Gear" then
-                descendant:Destroy()
-                removedCount = removedCount + 1
+                if descendant.Name == "Head" then
+                    descendant.Transparency = 1
+                    descendant.LocalTransparencyModifier = 1
+                    descendant.CanCollide = false
+                    descendant.CastShadow = false
+                else
+                    descendant:Destroy()
+                    removedCount = removedCount + 1
+                end
             end
         end
     end
@@ -7987,6 +7922,39 @@ function changeSkin(fileName)
                 end
             end
         end
+    end
+    local oldHead = oldModel:FindFirstChild("Head")
+    local newHead = nil
+    for _, d in ipairs(newModel:GetDescendants()) do
+        if d.Name == "Head" and d:IsA("BasePart") then
+            newHead = d
+            break
+        end
+    end
+
+    if oldHead and newHead then
+        oldHead.Transparency = 1
+        oldHead.LocalTransparencyModifier = 1
+        oldHead.CanCollide = false
+        local clonedHead = newHead:Clone()
+        clonedHead.Name = "Head_Custom"
+        clonedHead.Anchored = false
+        clonedHead.CanCollide = false
+        clonedHead.Massless = true
+        clonedHead.Transparency = 1
+        clonedHead.LocalTransparencyModifier = 0
+        clonedHead.Parent = oldHead.Parent
+        local oldFace = oldHead:FindFirstChild("Face")
+        if oldFace then
+            local newFace = oldFace:Clone()
+            newFace.Parent = clonedHead
+        end
+        local weld = Instance.new("Weld")
+        weld.Part0 = oldHead
+        weld.Part1 = clonedHead
+        weld.C0 = CFrame.new()
+        weld.C1 = CFrame.new()
+        weld.Parent = clonedHead
     end
     local function findInOldByPath(path, root)
         local current = root
@@ -8158,19 +8126,19 @@ end
 LoadSkinDB()
 createStandTab(tab_stands, "Stand Skins", {
     {Name = "Star Platinum", Skins = {"None", "Old Ova SP", "Jack-O-Platinum", "Luffy Gear 4", "Sumo Platinum", "Ova Platinum"}},
-    {Name = "Star Platinum: The World", Skins = {"None", "Haunted Jack-O-Platinum", "Jack-O-Platinum", "Festive Platinum", "Digital Star Platinum", "Star Platinum Stone Ocean", "Luffy Gear 4", "Sumo Platinum", "Ova Platinum", "Ova SP"}},
-    {Name = "The World", Skins = {"None", "Ghost World", "Festive World", "Shadow The World", "Sumo World", "Arlong", "The World Greatest High", "The Waifu v2", "Ova The World"}},
-    {Name = "The World Over Heaven", Skins = {"None", "Old TWOH", "Fused Zamasu", "Ghost World", "Mirage of Phantoms", "The Waifu Over Heaven", "Lightbringer", "The World Under Hell", "Festive World", "Retro The World Over Heaven", "Shadow The World", "Sumo World", "Arlong", "The World Greatest High", "The Waifu v2", "The Noob Over Heaven", "Ova The World"}},
+    {Name = "Star Platinum: The World", Skins = {"None", "Haunted Jack-O-Platinum", "Jack-O-Platinum", "Festive Platinum", "Digital Star Platinum", "Star Platinum: Stone Ocean", "Luffy Gear 4", "Sumo Platinum", "Ova Platinum", "Ova SP"}},
+    {Name = "The World", Skins = {"None", "The Waifu v1", "Ghost World", "Festive World", "Shadow The World", "Sumo World", "Arlong", "The World Greatest High", "The Waifu v2", "Ova The World"}},
+    {Name = "The World Over Heaven", Skins = {"None", "Old TWOH", "The Waifu v1", "Fused Zamasu", "Ghost World", "Mirage of Phantoms", "The Waifu Over Heaven", "Lightbringer", "The World Under Hell", "Festive World", "Retro The World Over Heaven", "Shadow The World", "Sumo World", "Arlong", "The World Greatest High", "The Waifu v2", "The Noob Over Heaven", "Ova The World"}},
     {Name = "The World Alternate Universe", Skins = {"None", "TWAU Over Heaven", "Deadeye Drifter", "The World: Ultimate", "The Waifu Alternate Universe"}},
     {Name = "King Crimson", Skins = {"None", "Tyrant Crimson", "Jester Crimson", "King Peppermint"}},
-    {Name = "King Crimson Requiem", Skins = {"None", "Grim Reaper", "Goku Black", "King Crampus", "Sukuna", "Jester Crimson", "King Peppermint"}},
+    {Name = "King Crimson Requiem", Skins = {"None", "Grim Reaper", "Rogue Ninja", "Goku Black", "King Crampus", "Sukuna", "Jester Crimson", "King Peppermint"}},
     {Name = "Gold Experience", Skins = {"None", "Dead Experience", "Biblically Accurate Experience"}},
     {Name = "Gold Experience Requiem", Skins = {"None", "Astral Enigma", "Lord Boros", "Dead Experience", "Biblically Accurate Experience"}},
     {Name = "Killer Queen", Skins = {"None", "Frostbite"}},
     {Name = "Killer Queen: Bites the Dust", Skins = {"None", "SCP-096", "Frostbite"}},
     {Name = "Whitesnake", Skins = {"None", "Snake of Christmas Past", "Moon of Christmas Past", "Deimos Snake"}},
-    {Name = "C-Moon", Skins = {"None", "Devil Moon", "Vela-Nova", "Snake of Christmas Past", "Moon of Christmas Past", "Deimos Snake"}},
-    {Name = "Made in Heaven", Skins = {"None", "Made in Christmas Future", "Horseman of Heaven", "Mr Jukes Angles", "Devil Moon", "Vela-Nova", "Snake of Christmas Past", "Moon of Christmas Past", "Deimos Snake"}},
+    {Name = "C-Moon", Skins = {"None", "Devil Moon", "Vela Nova", "Yuki Tsukumo", "Snake of Christmas Past", "Moon of Christmas Past", "Deimos Snake"}},
+    {Name = "Made in Heaven", Skins = {"None", "Made in Christmas Future", "Horseman of Heaven", "Mr Jukes Angles", "Yuki Tsukumo", "Devil Moon", "Vela-Nova", "Snake of Christmas Past", "Moon of Christmas Past", "Deimos Snake"}},
     {Name = "Shadow The World", Skins = {"None", "Booette", "GoJo", "Nah Id Win", "Shadow The World", "Shadow The Waifu"}},
     {Name = "Tusk Act 4", Skins = {"None", "Wendigo", "Tusk Dark Determination", "Tomb Crypt Tusk", "Heaven Act 4"}},
     {Name = "Crazy Diamond", Skins = {"None", "Crazy Overseer", "Neon Ascension Diamond", "Crazy Idol"}},
@@ -8217,7 +8185,6 @@ local player = game:GetService("Players").LocalPlayer
 if _G.AD_SkinChangerCleanup then
     pcall(_G.AD_SkinChangerCleanup)
 end
-
 local function ApplyStandSkinFromMorph(standMorph)
     task.spawn(function()
         local standName = standMorph:WaitForChild("Stand Name", 5)
@@ -8225,13 +8192,20 @@ local function ApplyStandSkinFromMorph(standMorph)
 
         local skin = _G.skinChanger_stands[standName.Value]
 
-        if skin == "" or not skin then
+        if (skin == "" or not skin) and not _G.Config.customSkins then
             return
         end
 
         local ok, err = pcall(function()
-            changeSkin(skin)
+            if not _G.Config.customSkins then
+                changeSkin(skin)
+            else
+                if _G.Config.customSkin ~= "None" then
+                    changeSkin("custom/" .. _G.Config.customSkin)
+                end
+            end
         end)
+
         if not ok then
             warn("[SkinChanger] LoadModel failed: " .. tostring(err))
         end
@@ -8301,6 +8275,75 @@ end
 skinChangerCharacterConnection = player.CharacterAdded:Connect(function()
     task.spawn(SetupCharacter)
     ApplyGloveSkinWhenReady()
+end)
+
+
+-- custom stands
+local tab_cstands = Library:CreateClass("Custom Stands")
+local customStandsSection = Library:CreateFunctionTab(tab_cstands, "Custom Stands")
+Library:CreateToggle(customStandsSection, "Enable Custom Stands", _G.Config.customSkins, function(v)
+    _G.Config.customSkins = v
+    if v then
+        if not isfolder("ssoc_skins/custom") then
+            makefolder("ssoc_skins/custom")
+        end
+    end
+    SaveConfig()
+end)
+
+local skinlistrn = {
+    "None"
+}
+if listfiles and isfolder then
+    local ok, files = pcall(listfiles, "ssoc_skins/custom")
+    if ok and files then
+        for _, fullPath in ipairs(files) do
+            local name = fullPath:match("([^/\\]+)$")
+            if name and name:match("%.rbxm[lx]?$") then
+                table.insert(skinlistrn, name)
+            end
+        end
+    end
+end
+
+local skinlistbroxd = Library:CreateDropdown(customStandsSection, "Skin", skinlistrn, _G.Config.customSkin, false, function(val)
+    _G.Config.customSkin = val
+    SaveConfig()
+end, true)
+
+task.spawn(function()
+    while wait(0.5) do
+        local newList = { "None" }
+        if listfiles and isfolder then
+            local ok, files = pcall(listfiles, "ssoc_skins/custom")
+            if ok and files then
+                for _, fullPath in ipairs(files) do
+                    local name = fullPath:match("([^/\\]+)%.(%w+)$")
+                    local ext  = fullPath:match("%.([%w]+)$")
+
+                    if name and ext then
+                        ext = ext:lower()
+                        if ext == "rbxmx" or ext == "rbxm" then
+                            table.insert(newList, name .. "." .. ext)
+                        end
+                    end
+                end
+            end
+        end
+        local changed = (#newList ~= #skinlistrn)
+        if not changed then
+            for i = 1, #newList do
+                if newList[i] ~= skinlistrn[i] then
+                    changed = true
+                    break
+                end
+            end
+        end
+        if changed then
+            skinlistrn = newList
+            updateDropdownItems(skinlistbroxd, skinlistrn)
+        end
+    end
 end)
 
 local succ, err = pcall(function()
