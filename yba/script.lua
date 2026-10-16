@@ -76,6 +76,9 @@ do
         hidePlayerlist = false,
         hideBlur = false,
 
+        recBox = false,
+        oldPbNbb = false,
+
         instantBarrage = false,
         instantBarrageR = false,
         instantBarrageHoldDuration = 6,
@@ -91,6 +94,8 @@ do
         autoParryCooldown = 1,
         autoParryShowRadius = false,
         autoParryRadiusColor = { R = 80, G = 255, B = 120 },
+        autoParryWait = 0.35,
+        autoParryHold = 0.35,
         autoParryRadiusTransparency = 0.55,
         autoParryRadiusYOffset = -1.5,
         autoParryAttacks = {
@@ -529,44 +534,52 @@ local function cacheCharacterParts(player, character)
         humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
     end)
 
+    local ok, boundsCF, boundsSize = pcall(function() return character:GetBoundingBox() end)
+    if not ok then
+        boundsCF = root.CFrame
+        boundsSize = Vector3.new(4, 5, 2)
+    end
+
+    local height = boundsSize.Y
+    local halfWidth = math.max(boundsSize.X, boundsSize.Z) * 0.5
+
+    local rootY = root.Position.Y
+    local boxTopY = boundsCF.Position.Y + boundsSize.Y * 0.5
+    local boxBottomY = boundsCF.Position.Y - boundsSize.Y * 0.5
+
     playerCache[player] = {
         character = character,
         root = root,
         humanoid = humanoid,
         parts = parts,
         partList = partList,
+        height = height,
+        halfWidth = halfWidth,
+        topOffset = boxTopY - rootY,
+        bottomOffset = rootY - boxBottomY,
     }
 end
 
-local function getBodyBounds(camera, partList)
-    local minX, minY = math.huge, math.huge
-    local maxX, maxY = -math.huge, -math.huge
-    local found = false
+local function getBodyBounds(camera, cache, worldToPixelBase)
+    local root = cache.root
+    local screen, visible = camera:WorldToViewportPoint(root.Position)
+    if not visible or screen.Z <= 0 then return nil end
 
-    for i = 1, #partList do
-        local part = partList[i]
-        if part.Parent then
-            local half = part.Size * 0.5
-            local cf = part.CFrame
-            for j = 1, 8 do
-                local screen = camera:WorldToViewportPoint(cf:PointToWorldSpace(BODY_CORNERS[j] * half))
-                if screen.Z > 0 then
-                    found = true
-                    local x, y = screen.X, screen.Y
-                    if x < minX then minX = x end
-                    if y < minY then minY = y end
-                    if x > maxX then maxX = x end
-                    if y > maxY then maxY = y end
-                end
-            end
-        end
-    end
+    local depth = screen.Z
+    local worldToPixel = worldToPixelBase / depth
 
-    if not found then return nil end
+    local halfHeight = cache.height * 0.5 * worldToPixel
+    local halfWidth = cache.halfWidth * worldToPixel
 
-    local padX = math.clamp((maxX - minX) * 0.035, 2, 7)
-    local padY = math.clamp((maxY - minY) * 0.025, 2, 6)
-    return minX - padX, minY - padY, maxX + padX, maxY + padY
+    local centerOffsetY = (cache.topOffset - cache.bottomOffset) * 0.5 * worldToPixel
+
+    local centerX, centerY = screen.X, screen.Y - centerOffsetY
+
+    local padX = math.clamp(halfWidth * 0.07, 2, 7)
+    local padY = math.clamp(halfHeight * 0.05, 2, 6)
+
+    return centerX - halfWidth - padX, centerY - halfHeight - padY,
+           centerX + halfWidth + padX, centerY + halfHeight + padY
 end
 
 local function worldToScreen(camera, part)
@@ -672,7 +685,7 @@ local function drawSkeleton(camera, parts, v)
     end
 end
 
-local function updatePlayer(camera, camPos, viewport, player, cache, nearestPlayer)
+local function updatePlayer(camera, camPos, viewport, player, cache, nearestPlayer, worldToPixelBase, tracerStart)
     local cfg = _G.Config
     local root = cache.root
     local humanoid = cache.humanoid
@@ -696,7 +709,7 @@ local function updatePlayer(camera, camPos, viewport, player, cache, nearestPlay
         return
     end
 
-    local minX, minY, maxX, maxY = getBodyBounds(camera, cache.partList)
+    local minX, minY, maxX, maxY = getBodyBounds(camera, cache, worldToPixelBase)
     if not minX then
         hideVisual(v)
         return
@@ -778,7 +791,7 @@ local function updatePlayer(camera, camPos, viewport, player, cache, nearestPlay
 
     if cfg.showTracers and (not cfg.tracerToNearPlayer or nearestPlayer == player) then
         local tracer = slot(v, "tracer")
-        tracer.From = Vector2.new(viewport.X * 0.5, viewport.Y)
+        tracer.From = tracerStart
         tracer.To = Vector2.new(centerX, maxY)
         tracer.Color = cachedColors.tracer
         tracer.Transparency = 0.75
@@ -834,6 +847,10 @@ local function updateEsp()
     local viewport = camera.ViewportSize
     local nearestPlayer = _G.Config.tracerToNearPlayer and getNearestPlayer(camPos) or nil
 
+    local fovRad = math.rad(camera.FieldOfView)
+    local worldToPixelBase = viewport.Y / (2 * math.tan(fovRad * 0.5))
+    local tracerStart = Vector2.new(viewport.X * 0.5, viewport.Y)
+
     for i = 1, #playerList do
         local player = playerList[i]
         if player ~= LocalPlayer then
@@ -844,7 +861,7 @@ local function updateEsp()
                 cache = playerCache[player]
             end
             if cache then
-                updatePlayer(camera, camPos, viewport, player, cache, nearestPlayer)
+                updatePlayer(camera, camPos, viewport, player, cache, nearestPlayer, worldToPixelBase, tracerStart)
             end
         end
     end
@@ -2189,6 +2206,47 @@ function skinChanger(skinNameNi)
             local leftClawsC1 = CFrame.new(0.5546178818, 0.3449656963, -0.0056009293)
             createGlove("LeftGlove", "LeftHand", "rbxassetid://7739766120", "rbxassetid://7739766906", leftWeldC1, leftClawsC1)
             createGlove("RightGlove", "RightHand", "rbxassetid://7739768200", "rbxassetid://7739767639", CFrame.new(-leftWeldC1.Position.X, leftWeldC1.Position.Y, leftWeldC1.Position.Z), CFrame.new(-leftClawsC1.Position.X, leftClawsC1.Position.Y, leftClawsC1.Position.Z))
+        elseif (item.Name == "Boxing Gloves" or item.Name == "Bone Gloves" or item.Name == "Boxing Claws" or item.Name == "Festive Gloves" or item.Name == "Boxing Blobs") and skinNameNi == "Boxing Blobs" then
+            item.Name = skinNameNi
+            local boxingGloves = item
+
+            local function setupBlob(gloveName, handName, weldC1)
+                local old = boxingGloves:FindFirstChild(gloveName)
+                if old then old:Destroy() end
+
+                local glove = Instance.new("MeshPart")
+                glove.Name = gloveName
+                glove.Size = Vector3.new(1, 1, 1)
+                glove.Anchored = false
+                glove.CanCollide = false
+                glove.Transparency = 0.35
+                glove.MeshId = "rbxassetid://132585786238368"
+                glove.Parent = boxingGloves
+
+                local mesh = Instance.new("SpecialMesh")
+                mesh.MeshId = "rbxassetid://122964035586272"
+                mesh.Parent = glove
+
+                local surface = Instance.new("SurfaceAppearance")
+                surface.MetalnessMap = "rbxassetid://132224566120638"
+                surface.ColorMap = "rbxassetid://122161849505336"
+                surface.RoughnessMap = "rbxassetid://95475776086452"
+                surface.TexturePack = "rbxassetid://116354331541652"
+                surface.Parent = glove
+
+                local hand = findHand(handName)
+                if hand then
+                    local weld = Instance.new("ManualWeld")
+                    weld.Name = "Weld"
+                    weld.Part0 = hand
+                    weld.Part1 = glove
+                    weld.C1 = weldC1
+                    weld.Parent = glove
+                end
+            end
+
+            setupBlob("LeftGlove", "LeftHand", CFrame.new(0.0603485107, 0.1250119209, 0.0349082351))
+            setupBlob("RightGlove", "RightHand", CFrame.new(-0.0603485107, 0.1250119209, 0.0349082351))
         end
     end
 end
@@ -6577,6 +6635,7 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             ["Killer Queen Finisher"] = true,
             ["Heavy_Charge"] = true,
             ["Rod Slap Voiceline"] = true,
+            ["Bubble Prison1"] = true,
             ["Rod_Hooked"] = true,
             ["Shinei Teleport"] = true,
             ["Star Finger Voiceline"] = true,
@@ -6788,8 +6847,8 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
                 VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
                 VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 
-                local delayTime = customWait or 0.35
-                local delayTime2 = customHold or 0.35
+                local delayTime = customWait or _G.Config.autoParryWait
+                local delayTime2 = customHold or _G.Config.autoParryHold
                 warn('[AUTO PB] delay: ' .. delayTime)
                 warn('[AUTO PB] hold: ' .. delayTime2)
 
@@ -6830,6 +6889,14 @@ Library:CreateToggle(autoParrySection, "Enable Auto Parry(F)", _G.Config.autoPar
             _G.imgaypbpbpb:Disconnect()
         end
     end
+end)
+Library:CreateSlider(autoParrySection, "Parry Wait", _G.Config.autoParryWait, 0.0, 1.0, function(val)
+    _G.Config.autoParryWait = val
+    SaveConfig()
+end)
+Library:CreateSlider(autoParrySection, "Parry Hold", _G.Config.autoParryHold, 0.0, 1.0, function(val)
+    _G.Config.autoParryHold = val
+    SaveConfig()
 end)
 Library:CreateToggle(autoParrySection, "Parry Near Players Only", _G.Config.autoParryNearPlayersOnly, function(state)
     _G.Config.autoParryNearPlayersOnly = state
@@ -7046,6 +7113,7 @@ end)
 local camera = workspace.CurrentCamera
 local tab_misc = Library:CreateClass("Misc")
 local visualsSection = Library:CreateFunctionTab(tab_misc, "Visuals")
+local skinChangerSection = Library:CreateFunctionTab(tab_misc, "Skin Changer")
 local removalsSection = Library:CreateFunctionTab(tab_misc, "Removals")
 local oldSection = Library:CreateFunctionTab(tab_misc, "Old YBA")
 function applyFov()
@@ -7143,13 +7211,12 @@ Library:CreateToggle(visualsSection, "Remove Stand's Barrage", _G.Config.removeB
     end
     SaveConfig()
 end)
-local skinChangerSection = Library:CreateFunctionTab(tab_misc, "Skin Changer")
 local finishersList = {"Tom", "Huh", "Huh #2", "GET OUT", "Bruh Moment", "God's Lightning", "Pillarman", "Sub-Zero", "Wither", "Lineage Wipe", "Minecraft", "Killer Queen Detonate", "Shiza", "Gate of Babylon", "Aincrad", "Announcer", "Hyperlaser", "Vampire Ripple", "Disintegrate"}
 Library:CreateDropdown(skinChangerSection, "Finishers", finishersList, _G.Config.Finisher, false, function(val)
     _G.Config.Finisher = val
     SaveConfig()
 end)
-local itemSkinsList = {"...", "Bone Gloves", "Festive Gloves", "Boxing Claws"}
+local itemSkinsList = {"...", "Bone Gloves", "Festive Gloves", "Boxing Claws", "Boxing Blobs"}
 Library:CreateDropdown(skinChangerSection, "Gloves Skin", itemSkinsList, _G.Config.itemSkinGloves, false, function(val)
     _G.Config.itemSkinGloves = val
     if val ~= "..." then
@@ -7159,6 +7226,52 @@ Library:CreateDropdown(skinChangerSection, "Gloves Skin", itemSkinsList, _G.Conf
         if not succ then warn("[SKIN CHANGER.ITEM] " .. err) end
     end
     SaveConfig()
+end)
+Library:CreateToggle(skinChangerSection, "Recolored Boxing", _G.Config.recBox, function(val)
+    _G.Config.recBox = val
+    SaveConfig()
+    if val then
+        
+        local FILE_NAME = "ad/boxing_new.rbxm"
+        local TARGET_PATH = game:GetService("ReplicatedStorage"):WaitForChild("Objects"):WaitForChild("Boxing")
+        if not FILE_NAME then
+            if not dwnld(FILE_NAME) then
+                warn('[boxing recolor]: ur unluckies guy ever lol')
+            end
+        end
+        local deletedCount = 0
+        for _, item in ipairs(TARGET_PATH:GetChildren()) do
+            if item.Name ~= "Boxing Passive" then
+                item:Destroy()
+                deletedCount = deletedCount + 1
+            end
+        end
+        local success, assetId = pcall(function()
+            return getcustomasset(FILE_NAME)
+        end)
+        if success and assetId then
+            local tempModel = game:GetObjects(assetId)[1]
+            if tempModel then
+                local importedCount = 0
+                local children = tempModel:GetChildren()
+                if #children > 0 then
+                    for _, child in ipairs(children) do
+                        child.Parent = TARGET_PATH
+                        importedCount = importedCount + 1
+                    end
+                    tempModel:Destroy()
+                else
+                    tempModel.Parent = TARGET_PATH
+                    importedCount = 1
+                end
+            else
+                warn("[boxing recolor]: im gay.")
+            end
+        else
+            warn("[boxing recolor]: no file broski")
+        end
+
+    end
 end)
 Library:CreateToggle(removalsSection, "Mobile UI", _G.Config.mobileUi, function(val)
     _G.Config.mobileUi = val
@@ -7207,6 +7320,130 @@ Library:CreateToggle(removalsSection, "Hide Attack's Blur", _G.Config.hideBlur, 
     end)
     end
     SaveConfig()
+end)
+Library:CreateToggle(oldSection, "Old BlockBreak and PerfectBlock", _G.Config.oldPbNbb,function(val)
+    _G.Config.oldPbNbb = val
+    SaveConfig()
+    if val then
+    -- 1
+    do
+        local fileName = "ad/OldPB.rbxm"
+        if not isfile(fileName) then
+            if not dwnld(fileName) then
+                warn('[oldbb/oldpb] not ur day bro')
+                return
+            end
+        end
+        local parentPath = game:GetService("ReplicatedStorage").Effects.HitFX.PerfectBlock.HitAttach
+        if not parentPath then
+            warn("no shit in thee ReplicatedStorage bro fuck this paragon's game ngl")
+            return
+        end
+        local targetColor = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.new(1, 0.0588235, 0.152941)),
+            ColorSequenceKeypoint.new(1, Color3.new(1, 0.0588235, 0.152941))
+        })
+        local filesToDelete = {"Ring", "Shine", "Spin", "Wisps", "HalfRing"}
+        local function loadLocalModel(name)
+            if getcustomasset then
+                local success, assetId = pcall(function() return getcustomasset(name) end)
+                if success then
+                    local objSuccess, objects = pcall(function() return game:GetObjects(assetId) end)
+                    if objSuccess and type(objects) == "table" and objects[1] then
+                        return objects[1]
+                    end
+                end
+            end
+            if game.GetObjects then
+                local success, objects = pcall(function() return game:GetObjects("rbxasset://" .. name) end)
+                if success and type(objects) == "table" and objects[1] then
+                    return objects[1]
+                end
+            end
+            return nil
+        end
+        for _, child in ipairs(parentPath:GetChildren()) do
+            if table.find(filesToDelete, child.Name) then
+                child:Destroy()
+            end
+        end
+        local newEffect = loadLocalModel(fileName)
+        if newEffect then
+            newEffect.Parent = parentPath
+            newEffect.Name = "HalfRing"
+            if newEffect:IsA("Attachment") then
+                newEffect.CFrame = CFrame.new()
+            end
+            local function applyColor(object)
+                local success, hasColor = pcall(function() return object.Color end)
+                if success and hasColor then
+                    object.Color = targetColor
+                end
+                for _, desc in ipairs(object:GetDescendants()) do
+                    local s, hc = pcall(function() return desc.Color end)
+                    if s and hc then
+                        desc.Color = targetColor
+                    end
+                end
+            end
+            applyColor(newEffect)
+        else
+            warn("YAPPY DOOR ! !!! !")
+        end
+    end
+    -- 2
+    do
+        local fileName = "ad/OldBB.rbxm"
+        if not isfile(fileName) then
+            if not dwnld(fileName) then
+                warn('[oldbb/oldpb] pohuy proebali')
+                return
+            end
+        end
+        local parentPath = game:GetService("ReplicatedStorage").Effects.HitFX.GuardBreak.HitAttach
+        if not parentPath then
+            warn("zxc no path in Replicated bro")
+            return
+        end
+        local filesToDelete = {"5", "6", "10", "20"}
+        local function loadLocalModel(name)
+            if getcustomasset then
+                local success, assetId = pcall(function() return getcustomasset(name) end)
+                if success then
+                    local objSuccess, objects = pcall(function() return game:GetObjects(assetId) end)
+                    if objSuccess and type(objects) == "table" and objects[1] then
+                        return objects[1]
+                    end
+                end
+            end
+            
+            if game.GetObjects then
+                local success, objects = pcall(function() return game:GetObjects("rbxasset://" .. name) end)
+                if success and type(objects) == "table" and objects[1] then
+                    return objects[1]
+                end
+            end
+            return nil
+        end
+        for _, child in ipairs(parentPath:GetChildren()) do
+            if table.find(filesToDelete, child.Name) then
+                child:Destroy()
+            end
+        end
+        local newEffect = loadLocalModel(fileName)
+        if newEffect then
+            newEffect.Parent = parentPath
+            newEffect.Name = "1"
+            if newEffect:IsA("Attachment") then
+                newEffect.CFrame = CFrame.new()
+            end
+        else
+            warn("SUKA,bro !")
+        end
+
+    end
+
+    end
 end)
 Library:CreateToggle(oldSection, "Old Water Texture", _G.Config.OldWaterTexture, function(val)
     _G.Config.OldWaterTexture = val
@@ -7398,7 +7635,185 @@ Library:CreateToggle(oldSection, "Old Sounds", _G.Config.oldSounds, function(val
         if not a then warn("[OLD SOUNDS] " .. tostring(b)) end
     end
 end)
+Library:CreateToggle(oldSection, "Old SP Inhale (visual)", _G.Config.oldSpInhale, function(val)
+    _G.Config.oldSpInhale = val
+    SaveConfig()
+    if val then
+    local RBXM_FILE_NAME = "ad/InhaleReplacement.rbxm" 
+    if not isfile(RBXM_FILE_NAME) then
+        if not dwnld(RBXM_FILE_NAME) then
+            warn('NO яба inhale bro (come play p94 idk)')
+        end
+    end
+    local OFFSET_POSITION = Vector3.new(0, 0, 20) 
+    local OFFSET_ROTATION = Vector3.new(0, 0, 0) 
+    local Players = game:GetService("Players")
+    local localPlayer = Players.LocalPlayer
+    local getasset = getcustomasset or getsynasset
+    local InhaleTemplate = nil
+    if getasset then
+        local assetId = getasset(RBXM_FILE_NAME)
+        local success, result = pcall(function()
+            return game:GetObjects(assetId)[1]
+        end)
+        if success and result then
+            InhaleTemplate = result
+        else
+            warn("[Inhale] zxc -1")
+        end
+    else
+        warn("[Inhale] zxc -2")
+    end
 
+    local connections = {}
+
+    local function cleanupConnections()
+        for _, conn in ipairs(connections) do
+            if conn and conn.Connected then
+                conn:Disconnect()
+            end
+        end
+        table.clear(connections)
+    end
+    local function applyEffectOffset(obj, parentAttachment)
+        local offsetCFrame = CFrame.new(OFFSET_POSITION) * CFrame.Angles(
+            math.rad(OFFSET_ROTATION.X), 
+            math.rad(OFFSET_ROTATION.Y), 
+            math.rad(OFFSET_ROTATION.Z)
+        )
+        if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("Sparkles") 
+        or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Trail") then
+            
+            local wrapper = Instance.new("Attachment")
+            wrapper.Name = obj.Name .. "_OffsetWrapper"
+            wrapper.CFrame = offsetCFrame
+            wrapper.Parent = parentAttachment
+            
+            obj.Parent = wrapper
+            
+        elseif obj:IsA("BasePart") then
+            obj.CFrame = obj.CFrame * offsetCFrame
+            obj.Parent = parentAttachment
+        elseif obj:IsA("Model") then
+            obj:PivotTo(obj:GetPivot() * offsetCFrame)
+            obj.Parent = parentAttachment
+        elseif obj:IsA("Attachment") then
+            obj.CFrame = obj.CFrame * offsetCFrame
+            obj.Parent = parentAttachment
+        else
+            obj.Parent = parentAttachment
+        end
+    end
+    local function processBreathAttach(attachment)
+        if not attachment or attachment.Name ~= "breathattach" then return end
+        local myInhale = nil 
+        local function replaceInhale()
+            for _, descendant in ipairs(attachment:GetDescendants()) do
+                if string.lower(descendant.Name) == "inhale" and descendant ~= myInhale then
+                    descendant:Destroy()
+                end
+            end
+            if not myInhale or not myInhale.Parent then
+                if InhaleTemplate then
+                    myInhale = InhaleTemplate:Clone()
+                    myInhale.Name = "Inhale"
+                    local success, err = pcall(function()
+                        applyEffectOffset(myInhale, attachment)
+                    end)
+                    
+                    if not success then
+                        warn("[Inhale] zxc -3 OFFSET shit:", err)
+                    end
+                end
+            end
+        end
+
+        replaceInhale()
+
+        if _G.descendantAddedConn then
+            _G.descendantAddedConn:Disconnect()
+        end
+        _G.descendantAddedConn = attachment.DescendantAdded:Connect(function(descendant)
+            if string.lower(descendant.Name) == "inhale" then
+                task.wait() 
+                replaceInhale()
+            end
+        end)
+        table.insert(connections, _G.descendantAddedConn)
+        if _G.descendantRemovedConn then
+            _G.descendantRemovedConn:Disconnect()
+        end
+        _G.descendantRemovedConn = attachment.DescendantRemoving:Connect(function(descendant)
+            if descendant == myInhale then
+                myInhale = nil 
+                task.defer(replaceInhale) 
+            end
+        end)
+        table.insert(connections, _G.descendantRemovedConn)
+    end
+    local function processHead(head)
+        if not head then return end
+
+        for _, child in ipairs(head:GetChildren()) do
+            if child.Name == "breathattach" then
+                processBreathAttach(child)
+            end
+        end
+        if _G.headChildAddedConn then
+            _G.headChildAddedConn:Disconnect()
+        end
+        _G.headChildAddedConn = head.ChildAdded:Connect(function(child)
+            if child.Name == "breathattach" then
+                processBreathAttach(child)
+            end
+        end)
+        table.insert(connections, _G.headChildAddedConn)
+    end
+    local function setupPath()
+        cleanupConnections() 
+
+        local livingFolder = workspace:FindFirstChild("Living")
+        if not livingFolder then return end
+
+        local playerFolder = livingFolder:FindFirstChild(localPlayer.Name)
+        if not playerFolder then return end
+
+        local standMorph = playerFolder:FindFirstChild("StandMorph")
+        if not standMorph then return end
+
+        local head = standMorph:FindFirstChild("Head")
+        if head then
+            processHead(head)
+        end
+    end
+
+    setupPath()
+
+    local livingFolder = workspace:WaitForChild("Living")
+    if _G.livingChildAddedConn then
+        _G.livingChildAddedConn:Disconnect()
+    end
+    _G.livingChildAddedConn = livingFolder.ChildAdded:Connect(function(child)
+        if child.Name == localPlayer.Name then
+            setupPath()
+        end
+    end)
+    table.insert(connections, _G.livingChildAddedConn)
+    else
+    if _G.descendantAddedConn then
+        _G.descendantAddedConn:Disconnect()
+    end
+    if _G.descendantRemovedConn then
+        _G.descendantRemovedConn:Disconnect()
+    end
+    if _G.headChildAddedConn then
+        _G.headChildAddedConn:Disconnect()
+    end
+    if _G.livingChildAddedConn then
+        _G.livingChildAddedConn:Disconnect()
+    end
+    end
+end)
 Library:CreateToggle(oldSection, "Old SP Stand", _G.Config.oldAnimationsSp, function(val)
     if not val and _G.Config.oldAnimationsSp then
         warn("rejoin may required")
