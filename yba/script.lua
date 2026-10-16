@@ -7638,17 +7638,34 @@ end)
 Library:CreateToggle(oldSection, "Old SP Inhale (visual)", _G.Config.oldSpInhale, function(val)
     _G.Config.oldSpInhale = val
     SaveConfig()
-    if val then
-    local RBXM_FILE_NAME = "ad/InhaleReplacement.rbxm" 
+
+    if _G.InhaleConnections then
+        for _, conn in ipairs(_G.InhaleConnections) do
+            if conn and conn.Connected then
+                conn:Disconnect()
+            end
+        end
+    end
+    _G.InhaleConnections = {}
+    local connections = _G.InhaleConnections
+
+    if not val then
+        return
+    end
+
+    local RBXM_FILE_NAME = "ad/InhaleReplacement.rbxm"
     if not isfile(RBXM_FILE_NAME) then
         if not dwnld(RBXM_FILE_NAME) then
             warn('NO яба inhale bro (come play p94 idk)')
+            return
         end
     end
-    local OFFSET_POSITION = Vector3.new(0, 0, 20) 
-    local OFFSET_ROTATION = Vector3.new(0, 0, 0) 
+
+    local OFFSET_POSITION = Vector3.new(0, 0, 20)
+    local OFFSET_ROTATION = Vector3.new(0, 0, 0)
     local Players = game:GetService("Players")
     local localPlayer = Players.LocalPlayer
+
     local getasset = getcustomasset or getsynasset
     local InhaleTemplate = nil
     if getasset then
@@ -7660,37 +7677,29 @@ Library:CreateToggle(oldSection, "Old SP Inhale (visual)", _G.Config.oldSpInhale
             InhaleTemplate = result
         else
             warn("[Inhale] zxc -1")
+            return
         end
     else
         warn("[Inhale] zxc -2")
+        return
     end
 
-    local connections = {}
-
-    local function cleanupConnections()
-        for _, conn in ipairs(connections) do
-            if conn and conn.Connected then
-                conn:Disconnect()
-            end
-        end
-        table.clear(connections)
-    end
     local function applyEffectOffset(obj, parentAttachment)
         local offsetCFrame = CFrame.new(OFFSET_POSITION) * CFrame.Angles(
-            math.rad(OFFSET_ROTATION.X), 
-            math.rad(OFFSET_ROTATION.Y), 
+            math.rad(OFFSET_ROTATION.X),
+            math.rad(OFFSET_ROTATION.Y),
             math.rad(OFFSET_ROTATION.Z)
         )
-        if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("Sparkles") 
+        if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("Sparkles")
         or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Trail") then
-            
+
             local wrapper = Instance.new("Attachment")
             wrapper.Name = obj.Name .. "_OffsetWrapper"
             wrapper.CFrame = offsetCFrame
             wrapper.Parent = parentAttachment
-            
+
             obj.Parent = wrapper
-            
+
         elseif obj:IsA("BasePart") then
             obj.CFrame = obj.CFrame * offsetCFrame
             obj.Parent = parentAttachment
@@ -7704,10 +7713,29 @@ Library:CreateToggle(oldSection, "Old SP Inhale (visual)", _G.Config.oldSpInhale
             obj.Parent = parentAttachment
         end
     end
+
+    local function watchChild(parent, childName, callback)
+        local existing = parent:FindFirstChild(childName)
+        if existing then
+            task.spawn(callback, existing)
+        end
+        local conn = parent.ChildAdded:Connect(function(child)
+            if child.Name == childName then
+                callback(child)
+            end
+        end)
+        table.insert(connections, conn)
+        return conn
+    end
+
     local function processBreathAttach(attachment)
         if not attachment or attachment.Name ~= "breathattach" then return end
-        local myInhale = nil 
+
+        local myInhale = nil
+
         local function replaceInhale()
+            if not attachment.Parent then return end
+
             for _, descendant in ipairs(attachment:GetDescendants()) do
                 if string.lower(descendant.Name) == "inhale" and descendant ~= myInhale then
                     descendant:Destroy()
@@ -7720,7 +7748,6 @@ Library:CreateToggle(oldSection, "Old SP Inhale (visual)", _G.Config.oldSpInhale
                     local success, err = pcall(function()
                         applyEffectOffset(myInhale, attachment)
                     end)
-                    
                     if not success then
                         warn("[Inhale] zxc -3 OFFSET shit:", err)
                     end
@@ -7730,27 +7757,23 @@ Library:CreateToggle(oldSection, "Old SP Inhale (visual)", _G.Config.oldSpInhale
 
         replaceInhale()
 
-        if _G.descendantAddedConn then
-            _G.descendantAddedConn:Disconnect()
-        end
-        _G.descendantAddedConn = attachment.DescendantAdded:Connect(function(descendant)
-            if string.lower(descendant.Name) == "inhale" then
-                task.wait() 
+        local addedConn = attachment.DescendantAdded:Connect(function(descendant)
+            if string.lower(descendant.Name) == "inhale" and descendant ~= myInhale then
+                task.wait()
                 replaceInhale()
             end
         end)
-        table.insert(connections, _G.descendantAddedConn)
-        if _G.descendantRemovedConn then
-            _G.descendantRemovedConn:Disconnect()
-        end
-        _G.descendantRemovedConn = attachment.DescendantRemoving:Connect(function(descendant)
+        table.insert(connections, addedConn)
+
+        local removedConn = attachment.DescendantRemoving:Connect(function(descendant)
             if descendant == myInhale then
-                myInhale = nil 
-                task.defer(replaceInhale) 
+                myInhale = nil
+                task.defer(replaceInhale)
             end
         end)
-        table.insert(connections, _G.descendantRemovedConn)
+        table.insert(connections, removedConn)
     end
+
     local function processHead(head)
         if not head then return end
 
@@ -7759,60 +7782,24 @@ Library:CreateToggle(oldSection, "Old SP Inhale (visual)", _G.Config.oldSpInhale
                 processBreathAttach(child)
             end
         end
-        if _G.headChildAddedConn then
-            _G.headChildAddedConn:Disconnect()
-        end
-        _G.headChildAddedConn = head.ChildAdded:Connect(function(child)
+
+        local conn = head.ChildAdded:Connect(function(child)
             if child.Name == "breathattach" then
                 processBreathAttach(child)
             end
         end)
-        table.insert(connections, _G.headChildAddedConn)
+        table.insert(connections, conn)
     end
-    local function setupPath()
-        cleanupConnections() 
-
-        local livingFolder = workspace:FindFirstChild("Living")
-        if not livingFolder then return end
-
-        local playerFolder = livingFolder:FindFirstChild(localPlayer.Name)
-        if not playerFolder then return end
-
-        local standMorph = playerFolder:FindFirstChild("StandMorph")
-        if not standMorph then return end
-
-        local head = standMorph:FindFirstChild("Head")
-        if head then
-            processHead(head)
-        end
-    end
-
-    setupPath()
 
     local livingFolder = workspace:WaitForChild("Living")
-    if _G.livingChildAddedConn then
-        _G.livingChildAddedConn:Disconnect()
-    end
-    _G.livingChildAddedConn = livingFolder.ChildAdded:Connect(function(child)
-        if child.Name == localPlayer.Name then
-            setupPath()
-        end
+
+    watchChild(livingFolder, localPlayer.Name, function(playerFolder)
+        watchChild(playerFolder, "StandMorph", function(standMorph)
+            watchChild(standMorph, "Head", function(head)
+                processHead(head)
+            end)
+        end)
     end)
-    table.insert(connections, _G.livingChildAddedConn)
-    else
-    if _G.descendantAddedConn then
-        _G.descendantAddedConn:Disconnect()
-    end
-    if _G.descendantRemovedConn then
-        _G.descendantRemovedConn:Disconnect()
-    end
-    if _G.headChildAddedConn then
-        _G.headChildAddedConn:Disconnect()
-    end
-    if _G.livingChildAddedConn then
-        _G.livingChildAddedConn:Disconnect()
-    end
-    end
 end)
 Library:CreateToggle(oldSection, "Old SP Stand", _G.Config.oldAnimationsSp, function(val)
     if not val and _G.Config.oldAnimationsSp then
@@ -8175,6 +8162,7 @@ end
 
 -- stand skin changer(shit but better ig)
 function changeSkin(fileName)
+    wait(0.01)
     local parentModel = game.Workspace:FindFirstChild("Living") and game.Workspace.Living:FindFirstChild(game.Players.LocalPlayer.Name)
     local oldModelName = "StandMorph"
 
