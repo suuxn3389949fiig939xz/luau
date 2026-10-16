@@ -7765,7 +7765,7 @@ function changeSkin(fileName)
 
     local HttpService = game:GetService("HttpService")
 
-    local fileName2 =  fileName .. ".rbxmx"
+    local fileName2 =  "ssoc_skins/" .. fileName
 
     local newModel = nil
     if getcustomasset and isfile then
@@ -7870,16 +7870,9 @@ function changeSkin(fileName)
     local removedCount = 0
     for _, descendant in ipairs(oldModel:GetDescendants()) do
         if (descendant:IsA("MeshPart") or descendant:IsA("Part") or descendant:IsA("UnionOperation")) then
-            if descendant.Name ~= "HumanoidRootPart" and descendant.Name ~= "Gear" then
-                if descendant.Name == "Head" then
-                    descendant.Transparency = 1
-                    descendant.LocalTransparencyModifier = 1
-                    descendant.CanCollide = false
-                    descendant.CastShadow = false
-                else
-                    descendant:Destroy()
-                    removedCount = removedCount + 1
-                end
+            if descendant.Name ~= "HumanoidRootPart" and descendant.Name ~= "Head" and descendant.Name ~= "Gear" then
+                descendant:Destroy()
+                removedCount = removedCount + 1
             end
         end
     end
@@ -7933,15 +7926,12 @@ function changeSkin(fileName)
     end
 
     if oldHead and newHead then
-        oldHead.Transparency = 1
-        oldHead.LocalTransparencyModifier = 1
-        oldHead.CanCollide = false
         local clonedHead = newHead:Clone()
         clonedHead.Name = "Head_Custom"
         clonedHead.Anchored = false
         clonedHead.CanCollide = false
         clonedHead.Massless = true
-        clonedHead.Transparency = 1
+        clonedHead.Transparency = newHead.Transparency
         clonedHead.LocalTransparencyModifier = 0
         clonedHead.Parent = oldHead.Parent
         local oldFace = oldHead:FindFirstChild("Face")
