@@ -8169,7 +8169,7 @@ function changeSkin(fileName)
 
     local HttpService = game:GetService("HttpService")
 
-    local fileName2 =  fileName
+    local fileName2 = "ssoc_skins/" .. fileName
 
     local newModel = nil
     if getcustomasset and isfile then
@@ -8672,15 +8672,15 @@ function LoadSkinDB()
 end
 LoadSkinDB()
 createStandTab(tab_stands, "Stand Skins", {
-    {Name = "Star Platinum", Skins = {"None", "Old Ova SP", "Jack-O-Platinum", "Luffy Gear 4", "Sumo Platinum", "Ova Platinum"}},
-    {Name = "Star Platinum: The World", Skins = {"None", "Haunted Jack-O-Platinum", "Jack-O-Platinum", "Festive Platinum", "Digital Star Platinum", "Star Platinum: Stone Ocean", "Luffy Gear 4", "Sumo Platinum", "Ova Platinum", "Ova SP"}},
+    {Name = "Star Platinum", Skins = {"None", "Star Waifu", "Jack-O-Platinum", "Luffy Gear 4", "Sumo Platinum", "Ova Platinum"}},
+    {Name = "Star Platinum: The World", Skins = {"None", "Haunted Jack-O-Platinum", "Jack-O-Platinum", "Festive Platinum", "Digital Star Platinum", "Star Platinum: Stone Ocean","Star Waifu", "Luffy Gear 4", "Sumo Platinum", "Ova Platinum", "Ova SP"}},
     {Name = "The World", Skins = {"None", "The Waifu v1", "Ghost World", "Festive World", "Shadow The World", "Sumo World", "Arlong", "The World Greatest High", "The Waifu v2", "Ova The World"}},
-    {Name = "The World Over Heaven", Skins = {"None", "Old TWOH", "The Waifu v1", "Fused Zamasu", "Ghost World", "Mirage of Phantoms", "The Waifu Over Heaven", "Lightbringer", "The World Under Hell", "Festive World", "Retro The World Over Heaven", "Shadow The World", "Sumo World", "Arlong", "The World Greatest High", "The Waifu v2", "The Noob Over Heaven", "Ova The World"}},
+    {Name = "The World Over Heaven", Skins = {"None", "The Waifu v1", "Fused Zamasu", "Ghost World", "Mirage of Phantoms", "The Waifu Over Heaven", "Lightbringer", "The World Under Hell", "Festive World", "Retro The World Over Heaven", "Shadow The World", "Sumo World", "Arlong", "The World Greatest High", "The Waifu v2", "The Noob Over Heaven", "Ova The World"}},
     {Name = "The World Alternate Universe", Skins = {"None", "TWAU Over Heaven", "Deadeye Drifter", "The World: Ultimate", "The Waifu Alternate Universe"}},
-    {Name = "King Crimson", Skins = {"None", "Tyrant Crimson", "Jester Crimson", "King Peppermint"}},
-    {Name = "King Crimson Requiem", Skins = {"None", "Grim Reaper", "Rogue Ninja", "Goku Black", "King Crampus", "Sukuna", "Jester Crimson", "King Peppermint"}},
+    {Name = "King Crimson", Skins = {"None", "Tyrant Crimson", "Vexus Crimson", "Jester Crimson", "King Peppermint"}},
+    {Name = "King Crimson Requiem", Skins = {"None", "Grim Reaper", "Rogue Ninja", "Tyrant Crimson", "Vexus Crimson", "Goku Black", "King Crampus", "Sukuna", "Jester Crimson", "King Peppermint"}},
     {Name = "Gold Experience", Skins = {"None", "Dead Experience", "Biblically Accurate Experience"}},
-    {Name = "Gold Experience Requiem", Skins = {"None", "Astral Enigma", "Lord Boros", "Dead Experience", "Biblically Accurate Experience"}},
+    {Name = "Gold Experience Requiem", Skins = {"None", "Astral Enigma", "Wispy Willow", "Lord Boros", "Dead Experience", "Biblically Accurate Experience"}},
     {Name = "Killer Queen", Skins = {"None", "Frostbite"}},
     {Name = "Killer Queen: Bites the Dust", Skins = {"None", "SCP-096", "Frostbite"}},
     {Name = "Whitesnake", Skins = {"None", "Snake of Christmas Past", "Moon of Christmas Past", "Deimos Snake"}},
@@ -8689,7 +8689,7 @@ createStandTab(tab_stands, "Stand Skins", {
     {Name = "Shadow The World", Skins = {"None", "Booette", "GoJo", "Nah Id Win", "Shadow The World", "Shadow The Waifu"}},
     {Name = "Tusk Act 4", Skins = {"None", "Wendigo", "Tusk Dark Determination", "Tomb Crypt Tusk", "Heaven Act 4"}},
     {Name = "Crazy Diamond", Skins = {"None", "Crazy Overseer", "Neon Ascension Diamond", "Crazy Idol"}},
-    {Name = "Crazy Diamond Requiem", Skins = {"None", "New Idol", "Crazy Sapphire Requiem", "Volcanic Diamond", "Jade Serenity", "Gilded Diamond", "Diamond head"}},
+    {Name = "Crazy Diamond Requiem", Skins = {"None", "New Idol", "Crazy Sapphire Requiem", "Volcanic Diamond", "Jade Serenity", "Gilded Diamond", "Diamond head", "Crazy Overseer", "Crazy Idol", "Neon Ascension Diamond"}},
     {Name = "Chariot Requiem", Skins = {"None", "Bunny Devil", "Ghostface", "Shanks", "Control Devil"}},
     {Name = "Chilli Pepper Alternate Universe", Skins = {"None", "Zenitsu"}},
     {Name = "Weather Report", Skins = {"None", "Aang", "Korra", "Zeus OP"}},
