@@ -1,4 +1,4 @@
-loadstring(game:HttpGet("https://raw.githubusercontent.com/wee84555dxvfg/luau/refs/heads/main/yba/outfits.lua", true))()
+--loadstring(game:HttpGet("https://raw.githubusercontent.com/wee84555dxvfg/luau/refs/heads/main/yba/outfits.lua", true))()
 do
     local PlayerGui = game:GetService("Players").LocalPlayer.PlayerGui
 
@@ -6398,7 +6398,7 @@ local function teleportUp()
     local verticalAngle = math.asin(math.clamp(lookDir.Y, -1, 1))
 
     if verticalAngle > _G.Config.timeSkipAngle then
-        local finalPos = hrp.Position + Vector3.new(0, 40, 0)
+        local finalPos = hrp.Position + Vector3.new(0, 30, 0)
 
         hum:ChangeState(Enum.HumanoidStateType.Jumping)
         task.wait(0.08)
@@ -8169,7 +8169,7 @@ function changeSkin(fileName)
 
     local HttpService = game:GetService("HttpService")
 
-    local fileName2 =  "ssoc_skins/" .. fileName
+    local fileName2 =  fileName
 
     local newModel = nil
     if getcustomasset and isfile then
@@ -8208,16 +8208,54 @@ function changeSkin(fileName)
     end
     local function ensurePath(root, path)
         local current = root
+        local sourceCurrent = newModel
+
         for i = 1, #path do
             local name = path[i]
+
+            local sourceObj = sourceCurrent:FindFirstChild(name)
             local nextObj = current:FindFirstChild(name)
-            if not nextObj then
-                nextObj = Instance.new("Folder")
-                nextObj.Name = name
-                nextObj.Parent = current
+
+            if sourceObj then
+                if nextObj and nextObj.ClassName ~= sourceObj.ClassName then
+                    nextObj:Destroy()
+                    nextObj = nil
+                end
+
+                if not nextObj then
+                    if sourceObj:IsA("BasePart") then
+                        nextObj = sourceObj:Clone()
+
+                        nextObj.Anchored = false
+                        nextObj.CanCollide = false
+                        nextObj.Massless = true
+
+                    elseif sourceObj:IsA("Model") then
+                        nextObj = Instance.new("Model")
+
+                    elseif sourceObj:IsA("Folder") then
+                        nextObj = Instance.new("Folder")
+
+                    else
+                        nextObj = Instance.new(sourceObj.ClassName)
+                    end
+
+                    nextObj.Name = name
+                    nextObj.Parent = current
+                end
+
+                sourceCurrent = sourceObj
+            else
+                if not nextObj then
+                    nextObj = Instance.new("Folder")
+                    nextObj.Name = name
+                    nextObj.Parent = current
+                end
             end
+
             current = nextObj
         end
+
         return current
     end
 
@@ -8250,7 +8288,7 @@ function changeSkin(fileName)
     local newVisualParts = {}
     for _, descendant in ipairs(newModel:GetDescendants()) do
         if (descendant:IsA("MeshPart") or
-        descendant:IsA("Part") or
+        --descendant:IsA("Part") or
         descendant:IsA("UnionOperation") or
         descendant:IsA("Attachment") or
         descendant:IsA("Beam") or
@@ -8266,7 +8304,12 @@ function changeSkin(fileName)
         descendant:IsA("Weld") or
         descendant:IsA("WeldConstraint")) then
 
-            if descendant.Name ~= "HumanoidRootPart" and descendant.Name ~= "Head" and not gearChildren[descendant] then
+            if descendant.Name ~= "HumanoidRootPart"
+            and not (
+                descendant.Name == "Head"
+                and descendant.Parent == newModel
+            )
+            and not gearChildren[descendant] then
                 table.insert(newVisualParts, descendant)
             end
         end
@@ -8314,6 +8357,13 @@ function changeSkin(fileName)
             local parentInOld = ensurePath(oldModel, parentPath)
 
             local clonedPart = part:Clone()
+
+            if clonedPart:IsA("BasePart") then
+                clonedPart.CanCollide = false
+                clonedPart.Anchored = false
+                clonedPart.Massless = true
+            end
+
             clonedPart.Parent = parentInOld
 
             if clonedPart:IsA("Attachment") then
@@ -8332,8 +8382,10 @@ function changeSkin(fileName)
             break
         end
     end
-
-    if oldHead and newHead then
+    local extraHeadFolder = newModel:FindFirstChild("Head_Extra_Parts")
+    local extraHead = extraHeadFolder and extraHeadFolder:FindFirstChild("Head")
+    local hasExtraHead = extraHead and extraHead:IsA("BasePart")
+    if oldHead and newHead and not hasExtraHead then
         local clonedHead = newHead:Clone()
         clonedHead.Name = "Head_Custom"
         clonedHead.Anchored = false
@@ -8454,20 +8506,100 @@ function changeSkin(fileName)
             warn("[sc_last]:MeshPart/BasePart -> Gear notfound (retro fucked up xd)")
         end
     end
+    local bodyParts = {
+        "Head",
+        "UpperTorso",
+        "LowerTorso",
+        "LeftUpperArm",
+        "LeftLowerArm",
+        "LeftHand",
+        "RightUpperArm",
+        "RightLowerArm",
+        "RightHand",
+        "LeftUpperLeg",
+        "LeftLowerLeg",
+        "LeftFoot",
+        "RightUpperLeg",
+        "RightLowerLeg",
+        "RightFoot"
+    }
+
+    local fixedCount = 0
+
+    for _, bodyName in ipairs(bodyParts) do
+        local extraFolder = oldModel:FindFirstChild(bodyName .. "_Extra_Parts")
+        local bodyPart = oldModel:FindFirstChild(bodyName)
+
+        if extraFolder and bodyPart and bodyPart:IsA("BasePart") then
+            for _, obj in ipairs(extraFolder:GetDescendants()) do
+                if obj:IsA("BasePart") then
+
+                    local connected = false
+
+                    for _, joint in ipairs(oldModel:GetDescendants()) do
+                        if joint:IsA("Weld")
+                        or joint:IsA("Motor6D")
+                        or joint:IsA("WeldConstraint") then
+
+                            if joint.Part0 == obj or joint.Part1 == obj then
+                                connected = true
+                                break
+                            end
+                        end
+                    end
+
+                    if not connected then
+                        local weld = Instance.new("Weld")
+
+                        weld.Name = "SkinAutoWeld"
+                        weld.Part0 = bodyPart
+                        weld.Part1 = obj
+
+                        local originalFolder = newModel:FindFirstChild(bodyName .. "_Extra_Parts")
+                        local originalBody = newModel:FindFirstChild(bodyName)
+
+                        local originalPart = originalFolder and originalFolder:FindFirstChild(obj.Name, true)
+
+                        if originalBody and originalPart
+                            and originalBody:IsA("BasePart")
+                            and originalPart:IsA("BasePart") then
+
+                            weld.C0 = originalBody.CFrame:ToObjectSpace(originalPart.CFrame)
+                        else
+                            weld.C0 = bodyPart.CFrame:ToObjectSpace(obj.CFrame)
+                        end
+
+                        weld.C1 = CFrame.new()
+
+                        weld.Parent = obj
+
+                        obj.Anchored = false
+                        obj.CanCollide = false
+                        obj.Massless = true
+
+                        fixedCount += 1
+                    end
+                end
+            end
+        end
+    end
     newModel:Destroy()
     _G.a909090909 = true
     task.spawn(function()
         while _G.a909090909 do
-            local zxc111 = game.Players.LocalPlayer.Character
-            if zxc111 then
-                local zxc222 = zxc111.StandMorph:FindFirstChild("Head_Extra_Parts"):FindFirstChild("Head")
-                if zxc222 then
-                    zxc222.Transparency = 1
+            pcall(function(...)
+                local zxc111 = game.Players.LocalPlayer.Character
+                if zxc111 then
+                    local zxc222 = zxc111.StandMorph:FindFirstChild("Head_Extra_Parts"):FindFirstChild("Head")
+                    local zxc333 = zxc111.StandMorph["Stand Name"]
+                    if zxc222 and zxc333.Name == "The World Over Heaven" then
+                        zxc222.Transparency = 1
+                    end
+                    if zxc222 and zxc222.Transparency == 1 or zxc333.Name ~= "The World Over Heaven" then
+                        _G.a909090909 = false
+                    end
                 end
-                if zxc222 and zxc222.Transparency == 1 then
-                    _G.a909090909 = false
-                end
-            end
+            end)
             wait(0.01)
         end
     end)
