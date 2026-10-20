@@ -2704,7 +2704,7 @@ task.spawn(function()
     end
 end)
 
-_G.AD_OutfitAutoLoad = player.CharacterAdded:Connect(function()
+local function tryAutoLoad()
     if not config.autoload then
         return
     end
@@ -2716,6 +2716,21 @@ _G.AD_OutfitAutoLoad = player.CharacterAdded:Connect(function()
     local ok, err = pcall(function()
         LoadSkin()
     end)
+    if not ok then
+        warn("[outfit] autoload error:", err)
+    end
+end
+
+task.spawn(function()
+    if config.autoload and selectedFile and selectedFile ~= "" then
+        local char = player.Character or player.CharacterAdded:Wait()
+        char:WaitForChild("Humanoid")
+        tryAutoLoad()
+    end
+end)
+
+_G.AD_OutfitAutoLoad = player.CharacterAdded:Connect(function()
+    tryAutoLoad()
 end)
 
 do
